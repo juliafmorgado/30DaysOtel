@@ -1,1 +1,1 @@
-# 30days-otel
+# 30 Days of Otel
