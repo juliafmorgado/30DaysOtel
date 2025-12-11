@@ -138,7 +138,7 @@ Click the links below to explore each day’s work:
 - [**LinkedIn**](https://www.linkedin.com/in/juliafmorgado/)
 - [**X/Twitter**](https://x.com/juliafmorgado)
 - [**YouTube**](https://www.youtube.com/juliafmorgado) 
-- [**Instagram:**](https://www.instagram.com/juliafmorgado/)
+- [**Instagram**](https://www.instagram.com/juliafmorgado/)
 - [**Blog**](https://www.juliafmorgado.com/)
 
 If you're learning OpenTelemetry too, feel free to reach out!
