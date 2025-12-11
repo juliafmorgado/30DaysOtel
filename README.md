@@ -1,4 +1,4 @@
-30 Days of OpenTelemetry
+# 30 Days of OpenTelemetry
 
 Welcome! This repository documents my **30-day journey** to learn OpenTelemetry from zero to certification-ready.
 
