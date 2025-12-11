@@ -135,11 +135,11 @@ Click the links below to explore each day’s work:
 
 # Connect with Me
 
-- **LinkedIn:** (your link)  
-- **X/Twitter:** (your link)  
-- **YouTube:** (your channel)  
-- **Instagram:** (your channel)
-- **Blog:** (your channel)
+- [**LinkedIn**](https://www.linkedin.com/in/juliafmorgado/)
+- [**X/Twitter**](https://x.com/juliafmorgado)
+- [**YouTube**](https://www.youtube.com/juliafmorgado) 
+- [**Instagram:**](https://www.instagram.com/juliafmorgado/)
+- [**Blog**](https://www.juliafmorgado.com/)
 
 If you're learning OpenTelemetry too, feel free to reach out!
 
