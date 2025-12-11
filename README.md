@@ -17,35 +17,6 @@ This is a **public learning project** designed to help others follow along and b
 
 ---
 
-# Repository Structure
-
-```
-30DaysOtel/
-│
-├── week1/
-│   ├── day01/
-│   ├── day02/
-│   ├── ...
-│
-├── week2/
-│   ├── day08/
-│   ├── ...
-│
-├── week3/
-│   ├── day15/
-│   ├── day16/
-│   ├── ...
-│
-├── week4/
-│   ├── day22/
-│   ├── ...
-│   ├── final-project/
-│
-└── README.md   <-- this file
-```
-
----
-
 # Goals of This Project
 
 - Understand **observability fundamentals**  
