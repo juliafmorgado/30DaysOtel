@@ -79,6 +79,7 @@ This is a **public learning project** designed to help others follow along and b
 - [**X/Twitter**](https://x.com/juliafmorgado)
 - [**YouTube**](https://www.youtube.com/juliafmorgado) 
 - [**Instagram**](https://www.instagram.com/juliafmorgado/)
+- [**Twitch**](https://www.twitch.tv/juliafmorgado)
 - [**Blog**](https://www.juliafmorgado.com/)
 
 If you're learning OpenTelemetry too, feel free to reach out!
