@@ -33,37 +33,6 @@ This is a **public learning project** designed to help others follow along and b
 
 ---
 
-# Daily Progress
-
-Click the links below to explore each day’s work:
-
-## **Week 1 — Observability Fundamentals**
-- [Day 1: Intro & Setup](week1/day01)
-- [Day 2: What Is Observability](week1/day02)
-- [Day 3: Traces, Metrics, Logs](week1/day03)
-- …
-  
-## **Week 2 — OTel API & SDK**
-- [Day 8: API vs SDK](week2/day08)
-- [Day 9: Tracing API](week2/day09)
-- [Day 10: Metrics API](week2/day10)
-- …
-
-## **Week 3 — OTel Collector**
-- [Day 15: Architecture](week3/day15)
-- [Day 16: Receivers](week3/day16)
-- [Day 17: Processors](week3/day17)
-- [Day 18: Exporters](week3/day18)
-- …
-
-## **Week 4 — Debugging + Final Project**
-- [Day 22: Debug Collector](week4/day22)
-- [Day 23: Broken Propagation](week4/day23)
-- [Day 24: Backpressure & Dropped Spans](week4/day24)
-- …
-
----
-
 # Weekly Blog Posts
 
 | Week | Blog Link |
