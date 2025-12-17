@@ -61,11 +61,9 @@ As the Payment Service calls Config Service, it includes that trace information 
 
 In a trace view, you’ll later see that request as a timeline. One request becomes one narrative: “Payment handled the incoming `/pay`, then called config, config called database, database took 800 ms, everything returned, request completed.”
 
-Here’s the beginner-friendly definition I wish I’d heard earlier:
+Easy way to remember: **A trace is the recorded journey of one request through the system.**
 
-**A trace is the recorded journey of one request through the system.**
-
-Tomorrow is the day to go deep on spans, but for today it’s enough to know that a trace is made of timed segments (spans) that represent the steps along that journey.
+Tomorrow we'll learn about spans, but for today it’s enough to know that a trace is made of timed segments (spans) that represent the steps along that journey.
 
 ## Metrics, and why they can’t answer “which request?”
 
@@ -78,12 +76,11 @@ That aggregate nature is the whole point. Metrics are cheap to collect, stable o
 But metrics can’t tell you *why* a specific request was slow. A latency histogram can tell you that p95 went from 300 ms to 1.2 s. It cannot tell you, by itself, “Config Service started taking 900 ms because one query lost an index.”
 
 >[!IMPORTANT]
->This is the handoff that matters in real life:
 >
 >Metrics tell you **something is wrong**.
 >Traces show you **where it went wrong for real requests**.
-
-That’s why people often “start with metrics” and “debug with traces”.
+>
+>That’s why people often “start with metrics” and “debug with traces”.
 
 ## Logs, and why they feel useful until they don’t
 
@@ -111,8 +108,10 @@ Logs get dramatically more powerful when they are correlated with traces. If a l
 
 This is the practical relationship:
 
-A trace is the map.
-Logs are the street-level notes pinned onto the map.
+>[!IMPORTANT]
+>
+>A trace is the map.
+>Logs are the street-level notes pinned onto the map.
 
 ## Context propagation: the glue that makes correlation possible
 
@@ -128,7 +127,7 @@ When context propagation is missing or broken, a trace fractures into separate i
 
 It answers the beginner’s biggest mystery: “How does the system know these pieces belong together?”
 
-## (Tiny cameo) Baggage
+## (Extra) Baggage
 
 Baggage is context that also propagates, but it’s not primarily about tracing structure. It’s more like “extra labels that travel with the request” such as tenant ID, user tier, or experiment group.
 
@@ -143,17 +142,18 @@ How to get there:
 1. Start with metrics – They're cheapest and catch most issues
 2. Add tracing selectively – Even 1% of requests traced is useful
 3. Correlate logs – Emit trace IDs in your log lines
-4. Use metrics to find time windows, traces to debug specific failures
+   
+Metrics find the problem, traces show the path, logs explain the failure
 
 ## What I’m taking into Day 4
 
-Tomorrow we'll zoom into spans: the individual segments that make up a trace timeline. Once spans click, we’ll be able to read a trace like a debugging timeline: what happened, in what order, and what was waiting on what.
+Tomorrow we'll zoom into spans: the individual segments that make up a trace timeline. Once spans click, we’ll be able to read a trace: what happened, in what order, and what was waiting on what.
 
 For Day 3, the win is this mental model:
 
-A single request moves as a chain of network calls and waiting.
-Tracing records that chain for one request.
-Metrics summarize many requests over time.
-Logs describe events, and become much more useful when correlated with traces through propagated context.
+- A single request moves as a chain of network calls and waiting.
+- Tracing records that chain for one request.
+- Metrics summarize many requests over time.
+- Logs describe events, and become much more useful when correlated with traces through propagated context.
 
 See you on Day 4!
