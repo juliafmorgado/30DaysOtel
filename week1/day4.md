@@ -18,15 +18,6 @@ We look at metrics and see p95 latency jumped from 300ms to 2.1 seconds. We pull
 
 <img width="1026" height="514" alt="trace hierarchy" src="https://github.com/user-attachments/assets/e6bb8119-f4aa-4def-b4c2-1f26d57f98bb" />
 
-
-Trace abc123 (2100ms total)
-│
-└─ POST /pay [████████████████████] 2100ms
-├─ Validate input [█] 5ms
-├─ Call Config Service [█████████████████] 2000ms ← Something's wrong here
-│ └─ Database: query rates [████████████████] 1950ms ← Specifically here
-└─ Process payment [██] 50ms
-
 **This visualization is made of spans.**  
 
 Let's break down what we're looking at.
