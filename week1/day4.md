@@ -14,13 +14,24 @@ We get an alert:
 
 > "The `/pay` endpoint is slow."
 
-We look at metrics and see p95 latency jumped from 300ms to 2.1 seconds. We pull up a trace. Here's what you see:
+We look at metrics and see p95 latency jumped from 300ms to 2.1 seconds. We pull up a trace. Here's what we see:
 
 <img width="1026" height="514" alt="trace hierarchy" src="https://github.com/user-attachments/assets/e6bb8119-f4aa-4def-b4c2-1f26d57f98bb" />
 
-**This visualization is made of spans.**  
+This picture shows **one trace**: one request.
 
-Let's break down what we're looking at.
+Each horizontal bar is a **span**.
+The length of the bar is how long that operation took.
+Indentation shows who called whom.
+
+- The top bar (`POST /pay`) is the whole request.
+- The bars underneath are the work done inside it.
+- The longest bar usually explains the slowness.
+
+In this trace, most spans are short.
+One span isn’t.
+
+That’s the clue.
 
 ---
 
