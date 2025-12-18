@@ -259,6 +259,21 @@ db.rows_affected = 150000 ← Way too many rows!
 
 This is what spans give you: **a timeline with context that points you to the exact problematic operation.**
 
+>[!NOTE]
+> **Why don't the numbers add up?**
+>
+> You might notice: the parent span is 2100ms, but the children (5ms + 2000ms + 50ms) only add up to 2055ms.
+>
+> Where's the other 45ms?
+>
+> This is **unexplained time** — work that happened in the parent span but wasn't captured by child spans. Usually:
+> - Framework overhead (parsing requests, routing)
+> - Serialization/deserialization
+> - Waiting for thread pools or connection pools
+> - Garbage collection pauses
+>
+> If this gap is large (like 500ms out of 2000ms), it's a clue that you're missing instrumentation for some operations.
+
 ## What I'm taking into Day 5
 
 I know there was a lot to take today! Today's win: **Spans are timed units of work that nest to form a trace. Attributes and resources add context. Context propagation (via propagators) is how spans stay connected across services.**
