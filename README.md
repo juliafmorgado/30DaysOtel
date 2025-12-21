@@ -123,7 +123,47 @@ This learning journey uses:
 - [OTelBin](https://www.otelbin.io/) (Collector config validation)
 - Docker / Docker Compose (local setup)
 
+---
+## Contributing
 
+This is a learning project, which means **I will make mistakes**. If you spot:
+
+- ❌ Technical errors or outdated information
+- 💡 Better ways to explain concepts
+- 🐛 Broken code examples
+- 📚 Resources I should check out
+- ❓ Questions I should explore
+
+**Please:**
+1. Open an Issue (for discussion)
+2. Submit a PR (for fixes)
+3. Leave a comment on social media posts
+4. DM me directly
+
+All contributions welcome, from typo fixes to major corrections. You'll be credited!
+
+---
+
+## Resources I'm Starting With
+
+**Official Docs:**
+- [OpenTelemetry Docs](https://opentelemetry.io/docs/)
+- [OTCA Exam Guide](https://training.linuxfoundation.org/certification/opentelemetry-certified-associate-otca/)
+- [Dash0 docs](https://www.dash0.com/documentation/dash0)
+
+**Books:**
+- [Practical OpenTelemetry: Adopting Open Observability Standards Across Your Organization](https://www.amazon.com/Practical-OpenTelemetry-Observability-Standards-Organization/dp/1484290747) by [Daniel Gomez Blanco](https://www.linkedin.com/in/danielgblanco86/)
+- [Learning OpenTelemetry](https://www.oreilly.com/library/view/learning-opentelemetry/9781098147174/) by [Ted Young](https://www.linkedin.com/in/ted-young/) and [Austin Parker](https://www.linkedin.com/in/austinlparker/)
+
+**Courses/Workshops:**
+- [OpenTelemetry Course on Udemy](https://www.udemy.com/course/opentelemetry/) (if I find a good one)
+- Dash0 internal workshops (from my team)
+
+**Community:**
+- [OpenTelemetry Slack](https://cloud-native.slack.com/) (#opentelemetry channel)
+- [CNCF OpenTelemetry SIG meetings](https://github.com/open-telemetry/community)
+
+I'll add more as I discover them.
 
 ---
 
