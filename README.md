@@ -2,7 +2,9 @@
 
 Welcome!
 
-> **What is OpenTelemetry?** It's the industry-standard framework for collecting and exporting observability data (traces, metrics, logs) in a vendor-neutral way. Think of it as the unified language that lets you understand what's happening inside your distributed systems.
+> **What is OpenTelemetry?**
+> 
+> It's the industry-standard framework for collecting and exporting observability data (traces, metrics, logs) in a vendor-neutral way. Think of it as the unified language that lets you understand what's happening inside your distributed systems.
 
 This is a **public learning project** designed to help others follow along and build production-ready observability skills step-by-step. Whether you're a complete beginner or already familiar with observability concepts, you'll find structured content, hands-on examples, and real-world patterns here. Feel free to follow along with me!
 
