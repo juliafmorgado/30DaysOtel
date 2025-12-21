@@ -490,7 +490,7 @@ provider.addSpanProcessor(processor);
 **Span processors:**
 - **BatchSpanProcessor:** Batches spans before sending (efficient for production)
 - **SimpleSpanProcessor:** Sends spans immediately (useful for debugging)
-- Custom processors (filter spans, add attributes, etc.)
+- **Custom processors** (filter spans, add attributes, etc.)
 
 ### 3. Exporters (where to send data)
 
@@ -683,7 +683,7 @@ sdk.start();
 - Adding resource attributes
 - Tuning performance (batch sizes, timeouts, etc.)
 
-**Most of the time:** We use the API. we configure the SDK once and forget about it.
+Most developers write API code every day and touch SDK configuration once.
 
 ## What I'm taking into Day 9
 
