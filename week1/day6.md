@@ -1,21 +1,13 @@
-# Day 6 – Instrumentation: How Spans Actually Get Created
+# Day 6 – Instrumentation: How Observability Data Gets Created
 
 For the past three days we learned how to read observability data:
-- [**Day 3:**](https://github.com/juliafmorgado/30DaysOtel/blob/main/week1/day3.md) traces = the journey of a request across services
-- [**Day 4:**](https://github.com/juliafmorgado/30DaysOtel/blob/main/week1/day4.md) spans = the building blocks of traces
-- [**Day 5:**](https://github.com/juliafmorgado/30DaysOtel/blob/main/week1/day5.md) semantic conventions = shared names on spans so data lines up across services
+- [**Day 3:**](https://github.com/juliafmorgado/30DaysOtel/blob/main/week1/day3.md) Three signals: traces (one request's journey), metrics (aggregate patterns), logs (event details)
+- [**Day 4:**](https://github.com/juliafmorgado/30DaysOtel/blob/main/week1/day4.md) Spans = the building blocks of traces (with attributes, timing, parent-child relationships)
+- [**Day 5:**](https://github.com/juliafmorgado/30DaysOtel/blob/main/week1/day5.md) Semantic conventions = standard names so data lines up across services
 
-Today we answer: **where do spans come from, and how do you get the ones you actually need?**
+Today we answer: **Where does observability data actually come from? Who creates the spans, metrics, and logs we've been learning about?**
 
-Instrumentation is the bridge between “I can interpret a trace” and “I can make traces that explain my system”.
-
-By the end of today, we'll understand:
-- What creates spans (and where)
-- Auto vs manual instrumentation, and what each can “see”
-- How span hierarchy happens without wiring parent/child manually
-- What not to instrument (so we don’t create noise)
-
-## The simplest truth: spans don’t appear, someone creates them
+## The core truth: Observability data doesn't appear, something creates it
 
 When we look at a trace like this:
 
@@ -27,43 +19,51 @@ POST /pay (1200ms)
 └─ Process payment (50ms)
 ```
 
-Every bar exists because some code decided to:
-1. start a span
-2. add context (attributes)
-3. end the span
+Or a metric dashboard showing "requests per second," or log lines saying "payment processed successfully", all of that data exists because **some code decided to record it**.
 
-That “some code” comes from two places:
+That recording code is called **instrumentation**.
 
-1. **Auto-instrumentation** — libraries create spans around known frameworks and clients
-2. **Manual instrumentation** — we create spans inside our own business logic
+This data gets created in two fundamentally different ways:
 
-The reason both exist isn't just about preference. It's about **visibility**. 
-**Auto-instrumentation** sees the "edges" or our services = library calls (HTTP, databases, queues). 
-**Manual instrumentation** sees the "meaning" inside our services = business logic (validate payment, calculate risk, process order).
+1. **Auto-instrumentation** — Libraries/frameworks automatically record observability data for you
+2. **Manual instrumentation** — You explicitly write code to record observability data
 
-## Auto-instrumentation: spans we get without touching app code
+The reason both exist is about **what they can see**:
+- **Auto-instrumentation** sees library calls (HTTP, databases, queues)
+- **Manual instrumentation** sees your business logic (validate payment, calculate risk, process order)
 
-Auto-instrumentation is when OpenTelemetry installs “sensors” around popular libraries we’re already using (Express, axios, pg, etc.) which watches our app's behavior and automatically creates spans for common operations. Think of it like having a security camera system. We don't have to manually take a photo every time someone walks through a door. The camera automatically captures movement at key entry points.
+Let's understand each one clearly.
 
-Auto-instrumentation creates spans for operations like:
-- Incoming HTTP requests (someone called our API)
-- Outgoing HTTP requests (we called another service)
-- Database queries (we read/wrote data)
-- Message queue operations (we published/consumed messages)
-- Cache calls (we hit Redis or Memcached)
-- gRPC calls (we made RPC calls)
+## Auto-instrumentation: observability you get without touching application code
 
-These are the places where our service interacts with the outside world, which is why auto-instrumentation gives us so much value so quickly. These operations tell you: **"Where did the request go? What external systems did it touch?"**
+Auto-instrumentation is when OpenTelemetry installs “sensors” around popular libraries we’re already using (Express, axios, pg, etc.) which watches our app's behavior and automatically creates telemetry for common operations. Think of it like having a security camera system. We don't have to manually take a photo every time someone walks through a door. The camera automatically captures movement at key entry points.
 
+### What auto-instrumentation records
 
-### Why auto-instrumentation exists
+**For traces**, it creates spans for:
+- Incoming HTTP requests
+- Outgoing HTTP requests  
+- Database queries
+- Message queue operations
+- Cache calls
+- gRPC calls
 
-Let's see a concrete example with a simple Express.js app.
+**For metrics**, it records:
+- Request counts
+- Request durations
+- Active requests
+- Error counts
+
+**For logs**, it can enrich your existing logs with trace context (trace IDs, span IDs)
+
+All of this happens **automatically** once you enable it.
+
+### A concrete example: Before and after auto-instrumentation
 
 #### **Before (no observability code)**
 
 ```javascript
-// app.js
+// app.js - just plain application code
 const express = require('express');
 const { Client } = require('pg');
 
@@ -78,34 +78,11 @@ app.get('/users/:id', async (req, res) => {
 app.listen(3000);
 ```
 
-#### **After (manual instrumentation)**
-Now imagine if we had to **manually instrument** every HTTP request and database query. Our code would look like this:
+**What observability data do you get?** None. No traces, no metrics, no correlation.
 
-```javascript
-app.get('/users/:id', async (req, res) => {
-  const httpSpan = tracer.startSpan('GET /users/:id');
-  httpSpan.setAttribute('http.method', 'GET');
-  httpSpan.setAttribute('http.route', '/users/:id');
-  
-  const dbSpan = tracer.startSpan('SELECT users');
-  dbSpan.setAttribute('db.system', 'postgresql');
-  dbSpan.setAttribute('db.statement', 'SELECT * FROM users WHERE id = $1');
-  
-  const result = await db.query('SELECT * FROM users WHERE id = $1', [req.params.id]);
-  
-  dbSpan.end();
-  httpSpan.setAttribute('http.status_code', 200);
-  httpSpan.end();
-  
-  res.json(result.rows[0]);
-});
-```
+#### **After enabling auto-instrumentation:**
 
-**This is miserable.** Our business logic (4 lines) is buried under observability boilerplate (10+ lines). And we'd have to do this for every single endpoint and database call.
-
-#### **After (OpenTelemetry with auto-instrumentation)**
-
-We only have to create a **separate setup file** (this keeps our business logic clean):
+You create **one setup file** (separate from your application code):
 
 ```javascript
 // instrumentation.js
@@ -118,118 +95,186 @@ const sdk = new NodeSDK({
   traceExporter: new OTLPTraceExporter({
     url: 'http://localhost:4318/v1/traces',
   }),
-  instrumentations: [getNodeAutoInstrumentations()],
+  instrumentations: [getNodeAutoInstrumentations()], // ← The magic line
 });
 
 sdk.start();
 
-console.log('Tracing initialized');
+console.log('OpenTelemetry initialized');
 ```
 
-This file does four things:
-1. Imports the OpenTelemetry SDK
-2. Enables auto-instrumentation for all supported libraries
-3. Configures where to send traces (the exporter)
-4. Starts the SDK
-
-**Run our app with this setup file loaded:**
+**Run your app with this setup file loaded first:**
 
 ```bash
 node --require ./instrumentation.js app.js
 ```
 
-The `--require` flag tells Node.js to load the instrumentation file before our app code runs. This gives OpenTelemetry a chance to wrap our libraries before we use them.
+The `--require` flag tells Node.js to load the instrumentation file before your application code runs. This gives OpenTelemetry a chance to wrap your libraries before they're used.
 
-**That's it.** Our application code (`app.js`) hasn't changed at all. But now when someone calls `GET /users/123`, we get a trace:
+**Your application code (`app.js`) hasn't changed at all.** But now when someone calls `GET /users/123`:
 
+**You get traces:**
 ```
 Trace abc123
 └─ GET /users/:id (45ms)
    └─ SELECT users (40ms)
 ```
 
-And we’ll see standard attributes (semantic conventions) applied automatically, like:
+**With semantic conventions automatically applied:**
 ```
 Span: GET /users/:id
   http.method = "GET"
   http.route = "/users/:id"
   http.status_code = 200
   http.target = "/users/123"
-  http.scheme = "http"
-  http.host = "localhost:3000"
 
 Span: SELECT users
   db.system = "postgresql"
   db.statement = "SELECT * FROM users WHERE id = $1"
   db.operation = "SELECT"
-  db.name = "mydb"
 ```
 
-**We wrote zero instrumentation code in our application logic.** The observability is completely separated from our business logic.
+**You get metrics:**
+```
+http.server.request.duration (histogram)
+http.server.active_requests (gauge)
+db.client.operation.duration (histogram)
+```
 
-### How does it work? (no magic, just wrapping)
+**You get correlated logs** (if you're using a logging library):
+```
+[trace_id=abc123 span_id=def456] GET /users/123 - 200 OK
+```
 
-Auto-instrumentation typically works by **wrapping library functions** (often called monkey-patching). In plain terms: it loads early, takes the original function, and swaps it with a “wrapped” version that does a little extra work before and after the real call.
+All of this from **zero changes to your application code**. That's the power of auto-instrumentation.
 
-That wrapped version usually:
-- starts a span
-- calls the original function
-- records metadata (attributes, status, errors)
-- ends the span
+### How does auto-instrumentation work? (no magic, just wrapping)
 
-This is powerful because:
-1. We don't have to modify your application code
-2. We get semantic conventions applied automatically
-3. Upgrades to instrumentation libraries gives us better observability without code changes
-4. We can enable/disable instrumentation by changing one configuration file
+Auto-instrumentation uses a technique called **monkey-patching** or **wrapping**.
 
->[!NOTE]
->Most OpenTelemetry auto-instrumentation packages cover the most common libraries in each language ecosystem but always **check what's available for your language.**
-> 
->These lists are constantly growing as the community adds support for more libraries.
+Here's what happens in plain English:
 
-### What auto-instrumentation cannot do
-
-Auto-instrumentation does not understand your business logic (custom application logic) only **library calls**.
-
-**Example for a payment endpoint:**
+1. Your instrumentation file loads first
+2. OpenTelemetry finds the Express library
+3. It wraps Express's route handler function:
 
 ```javascript
-app.post('/pay', async (req, res) => {  // ✅ Auto-instrumentation sees this (Express handling the HTTP request)
-  
-  validatePaymentRules(req.body);  // ❌ Not instrumented (custom function)
-  
-  const risk = calculateRiskScore(req.body);  // ❌ Not instrumented (custom function)
-  
-  await db.query('INSERT INTO payments VALUES ...');   // ✅ Auto-instrumentation sees this (PostgreSQL db call)
-  
-  sendConfirmationEmail(req.body.email);  // ❌ Not instrumented (custom function)
-  
-  res.json({ success: true });   // ✅ Auto-instrumentation sees this (Express sending the HTTP response)
+// Simplified: what OpenTelemetry does behind the scenes
+const originalRouteHandler = express.Router.handle;
 
+express.Router.handle = function wrappedHandler(req, res, next) {
+  // Start a span
+  const span = tracer.startSpan(`${req.method} ${req.route.path}`);
+  span.setAttribute('http.method', req.method);
+  span.setAttribute('http.route', req.route.path);
+  
+  // Call the original function (your code runs)
+  const result = originalRouteHandler.call(this, req, res, next);
+  
+  // End the span
+  span.setAttribute('http.status_code', res.statusCode);
+  span.end();
+  
+  return result;
+};
+```
+
+Your code calls Express functions normally. But those functions now have observability built in.
+
+**Same thing happens with database libraries, HTTP clients, everything.**
+
+This is powerful because:
+- Your application code stays clean
+- Semantic conventions are applied automatically
+- You can enable/disable instrumentation without code changes
+- Library upgrades give you better observability for free
+
+>[!NOTE]
+> Most OpenTelemetry auto-instrumentation packages cover the most common libraries in each language ecosystem. Always check what's available for your language:
+> - **Node.js:** https://www.npmjs.com/package/@opentelemetry/auto-instrumentations-node
+> - **Python:** https://github.com/open-telemetry/opentelemetry-python-contrib/tree/main/instrumentation
+> - **Java:** https://github.com/open-telemetry/opentelemetry-java-instrumentation
+
+### What auto-instrumentation CANNOT see
+
+Auto-instrumentation only sees **library boundaries**. It cannot understand your custom business logic.
+
+**Example payment endpoint:**
+
+```javascript
+app.post('/pay', async (req, res) => {
+  // ✅ Auto-instrumentation sees this (Express handling HTTP request)
+  
+  validatePaymentRules(req.body);  // ❌ Not instrumented (your custom function)
+  
+  const risk = calculateRiskScore(req.body);  // ❌ Not instrumented (your custom function)
+  
+  await db.query('INSERT INTO payments...');   // ✅ Auto-instrumentation sees this (PostgreSQL)
+  
+  sendConfirmationEmail(req.body.email);  // ❌ Not instrumented (your custom function)
+  
+  res.json({ success: true });  // ✅ Auto-instrumentation sees this (Express response)
 });
 ```
 
-**Result:** With only auto instrumentation, our trace might look like:
+**Your trace with ONLY auto-instrumentation:**
 
 ```
 POST /pay (500ms)
 └─ INSERT payments (50ms)
 ```
 
-**The problem:** We can see the request took 500ms and the database took 50ms. But where did the other 450ms go? The problem must be somewhere else in the code. But we can't see *where* in our code.
+**The problem:** The request took 500ms, the database took 50ms. Where did the other 450ms go?
+
+You know it's *somewhere* in your code, but you can't see where. The custom functions (`validatePaymentRules`, `calculateRiskScore`, `sendConfirmationEmail`) are invisible to auto-instrumentation.
 
 **This is the gap that manual instrumentation fills.**
 
-## Manual instrumentation: spans we create to explain the code
+## Manual instrumentation: observability you explicitly create
 
-Manual instrumentation means: **we write code that explicitly creates spans** for our custom operations like business logic functions, custom algorithms, internal processing steps, operations that don't use instrumented libraries.
+Manual instrumentation means **you write code that creates observability data for your custom operations**.
 
-Think of auto-instrumentation as security cameras at doors and windows (external boundaries). Manual instrumentation is like adding cameras inside specific rooms to see what happens internally.
+This is where you instrument:
+- Business logic functions (`validatePayment`, `calculateRisk`)
+- Custom algorithms (routing, pricing, recommendations)
+- Internal processing steps
+- Operations using protocols/libraries that aren't auto-instrumented
 
-### The same example, with manual instrumentation
+Think of auto-instrumentation as cameras at building entrances (external boundaries). Manual instrumentation is adding cameras inside specific rooms to see internal work.
 
-Let's add manual instrumentation to the payment endpoint:
+### What does "manual" actually mean?
+
+Manual instrumentation means calling functions from the **OpenTelemetry API**.
+
+> [!IMPORTANT]
+> **Wait, what's an "API"?**
+> 
+> "API" stands for "Application Programming Interface," but that's jargon. Here's what it means in simple terms:
+>
+>**An API is a set of functions you can call in your code.**
+>
+>When we say "OpenTelemetry API," we mean: **OpenTelemetry gives you functions you can call to create observability data.**
+>
+>Examples of these functions:
+>- `trace.getTracer()` — Get a tool for creating spans
+>- `tracer.startSpan()` — Start recording a timed operation
+>- `span.setAttribute()` — Add context to the operation
+>- `span.end()` — Stop recording
+>- `meter.createCounter()` — Create a metric counter
+>- `counter.add(1)` — Increment the counter
+>
+>**You've actually been learning about these functions all week without realizing it:**
+>
+>- **Day 4:** When you learned `span.setAttribute('user.id', '12345')` — that's the OpenTelemetry API
+>- **Day 5:** When you learned semantic conventions like `http.method` — those are used WITH the OpenTelemetry API
+>
+>**Auto-instrumentation and manual instrumentation both use the same API.** The only difference is:
+>- Auto-instrumentation: Libraries call these functions for you
+>- Manual instrumentation: You call these functions yourself
+
+### The same payment example, with manual instrumentation
+
+Let's add manual instrumentation to see those hidden operations:
 
 ```javascript
 const { trace } = require('@opentelemetry/api');
@@ -258,7 +303,7 @@ app.post('/pay', async (req, res) => {
   riskSpan.setAttribute('payment.currency', req.body.currency);
   riskSpan.end();
   
-  // Auto-instrumented span: Database call
+  // Auto-instrumented span: Database call (library creates this automatically)
   await db.query('INSERT INTO payments VALUES ...');
   
   // Manual span #3: Send confirmation email
@@ -271,119 +316,176 @@ app.post('/pay', async (req, res) => {
 });
 ```
 
-**Now our trace looks like:**
+**Now your trace shows everything:**
 
 ```
 POST /pay (500ms)
 ├─ validate_payment_rules (10ms)
 ├─ calculate_risk_score (5ms)
 ├─ INSERT payments (50ms)
-└─ send_confirmation_email (400ms)  ← Aha! Email is the slow part. The bottleneck is obvious
+└─ send_confirmation_email (400ms)  ← Found the bottleneck!
 ```
 
-You see the problem instantly: the email service is timing out. You check your email provider's status page and see they're having an outage. **Problem identified in 30 seconds.**
+The email operation is taking 400ms. You check your email provider's status and see they're having an outage. **Problem identified in seconds.**
 
-This is why manual instrumentation isn't optional for production systems. Auto-instrumentation gets you 80% of the way there. Manual instrumentation covers the critical 20% that auto-instrumentation can't see (your business logic).
+### Manual instrumentation for metrics
 
-### When to use manual instrumentation
-Use manual spans when:
-- you want visibility into business steps
-- a request is “slow somewhere” and auto spans don’t show where
-- you want domain context (order id, tier, experiment group)
-- you’re calling something that isn’t instrumented (custom protocol, legacy client)
+You can also manually record metrics:
 
+```javascript
+const { metrics } = require('@opentelemetry/api');
+
+const meter = metrics.getMeter('payment-service');
+
+// Create a counter
+const paymentCounter = meter.createCounter('payments.processed', {
+  description: 'Number of payments processed'
+});
+
+// Create a histogram for payment amounts
+const paymentAmount = meter.createHistogram('payment.amount', {
+  description: 'Payment amount distribution'
+});
+
+// In your code:
+app.post('/pay', async (req, res) => {
+  // ... payment processing ...
+  
+  paymentCounter.add(1, {
+    'payment.method': req.body.method,
+    'payment.currency': req.body.currency
+  });
+  
+  paymentAmount.record(req.body.amount, {
+    'payment.currency': req.body.currency
+  });
+  
+  res.json({ success: true });
+});
+```
+
+Now you can query: "How many USD credit card payments were processed in the last hour?"
+
+### Manual instrumentation for logs
+
+You can emit structured logs with trace correlation:
+
+```javascript
+const { trace } = require('@opentelemetry/api');
+const logger = require('winston');
+
+app.post('/pay', async (req, res) => {
+  const span = trace.getActiveSpan();
+  const traceId = span.spanContext().traceId;
+  const spanId = span.spanContext().spanId;
+  
+  logger.info('Payment processing started', {
+    trace_id: traceId,
+    span_id: spanId,
+    payment_amount: req.body.amount,
+    payment_method: req.body.method
+  });
+  
+  // ... payment logic ...
+});
+```
+
+Now your logs are correlated with traces. You can search logs by trace ID and see exactly what happened in that specific request.
 
 ## How auto and manual instrumentation work together
 
-You don’t pick one. You layer them.
-- Auto gives you the skeleton: HTTP, DB, RPC, queues
-- Manual adds the muscles and organs: the meaningful steps that explain your product
-
-Always **start with auto-instrumentation** and **add manual instrumentation where it matters**.
-
-## The biggest beginner mistake
-
-It’s tempting to create spans for every helper function. Don’t.
-
-Too many spans makes traces unreadable, add overhead, cost money in storage, hide the important parts.
-
-A simple rule of thumb:
-- If it’s fast (less than 1ms) and boring, don’t span it
-- If it’s slow, risky, business-critical, or confusing, span it
-
-If you just want to attach context (like counts, ids, flags), add an attribute on the existing span.
-
-## The instrumentation stack (how it all connects)
-
-Let's zoom out and see the full picture of how instrumentation fits into the OpenTelemetry architecture:
+You don't choose one or the other. You use **both**, and they complement each other.
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│ Your Application Code                                   │
-│                                                          │
-│ app.post('/pay', async (req, res) => {                 │
-│   validatePayment(req.body);  ← Not instrumented        │
-│   await db.query(...);        ← Auto-instrumented       │
-│ });                                                      │
-└─────────────────────────────────────────────────────────┘
-                         ↓
-┌─────────────────────────────────────────────────────────┐
-│ Auto-Instrumentation Libraries                          │
-│                                                          │
-│ • @opentelemetry/instrumentation-express                │
-│ • @opentelemetry/instrumentation-pg                     │
-│ • @opentelemetry/instrumentation-http                   │
-│                                                          │
-│ These wrap your libraries and create spans              │
-└─────────────────────────────────────────────────────────┘
-                         ↓
-┌─────────────────────────────────────────────────────────┐
-│ Manual Instrumentation (Your Code)                      │
-│                                                          │
-│ const span = tracer.startSpan('validate_payment');     │
-│ validatePayment(req.body);                              │
-│ span.end();                                             │
-└─────────────────────────────────────────────────────────┘
-                         ↓
-┌─────────────────────────────────────────────────────────┐
-│ OpenTelemetry API                                       │
-│                                                          │
-│ • trace.getTracer()                                     │
-│ • tracer.startSpan()                                    │
-│ • span.setAttribute()                                   │
-│ • span.end()                                            │
-│                                                          │
-│ This is the interface you use in your code              │
-└─────────────────────────────────────────────────────────┘
-                         ↓
-┌─────────────────────────────────────────────────────────┐
-│ OpenTelemetry SDK                                       │
-│                                                          │
-│ • Collects spans from all sources (auto + manual)      │
-│ • Adds resource attributes (service.name, etc.)         │
-│ • Applies sampling decisions                            │
-│ • Batches spans for efficiency                          │
-│ • Manages context propagation                           │
-└─────────────────────────────────────────────────────────┘
-                         ↓
-┌─────────────────────────────────────────────────────────┐
-│ Exporter                                                │
-│                                                          │
-│ • OTLPTraceExporter (sends to collectors)              │
-│ • JaegerExporter (sends to Jaeger)                     │
-│ • ZipkinExporter (sends to Zipkin)                     │
-│ • ConsoleSpanExporter (prints to console for debugging)│
-│                                                          │
-│ Converts spans to wire format and sends to backend      │
-└─────────────────────────────────────────────────────────┘
-                         ↓
-┌─────────────────────────────────────────────────────────┐
-│ Observability Backend                                   │
-│                                                          │
-│ • Jaeger, Tempo, Dash0, Lightstep, Honeycomb, etc.    │
-│ • Stores spans                                          │
-│ • Lets you query and visualize traces                   │
-└─────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────┐
+│ Your Application Code                               │
+│                                                      │
+│ app.post('/pay', async (req, res) => {             │
+│   validatePayment(req.body);  ← Manual span needed │
+│   await db.query(...);        ← Auto span created  │
+│ });                                                  │
+└─────────────────────────────────────────────────────┘
+                        ↓
+        ┌──────────────────────────────────┐
+        │                                  │
+        ↓                                  ↓
+┌──────────────────┐          ┌──────────────────────┐
+│ Auto             │          │ Manual               │
+│ instrumentation  │          │ instrumentation      │
+│                  │          │                      │
+│ • HTTP requests  │          │ • Business logic     │
+│ • DB queries     │          │ • Custom functions   │
+│ • Cache calls    │          │ • Domain operations  │
+│ • Message queues │          │ • Your unique code   │
+└──────────────────┘          └──────────────────────┘
+        │                                  │
+        └──────────────┬───────────────────┘
+                       ↓
+        ┌──────────────────────────────────┐
+        │ OpenTelemetry API                │
+        │                                  │
+        │ Both use the same functions:    │
+        │ • startSpan()                   │
+        │ • setAttribute()                │
+        │ • createCounter()               │
+        │ • record()                      │
+        └──────────────────────────────────┘
+                       ↓
+        ┌──────────────────────────────────┐
+        │ OpenTelemetry SDK                │
+        │                                  │
+        │ • Collects all telemetry        │
+        │ • Applies sampling              │
+        │ • Batches data                  │
+        │ • Sends to backend              │
+        └──────────────────────────────────┘
+                       ↓
+              Backend (Jaeger, Dash0, etc.)
+```
+
+**The key insight:** Auto-instrumentation and manual instrumentation both use the same OpenTelemetry API. They're not competing systems—they're two ways of calling the same functions.
+
+**Your strategy should be:**
+
+1. **Start with auto-instrumentation** — Get 80% coverage with zero code changes
+2. **Identify gaps** — Look at traces and find "unexplained time"
+3. **Add manual instrumentation** — Fill those gaps with business context
+4. **Iterate** — Add more manual instrumentation as you discover what you need to see
+
+## The biggest beginner mistake (and how to avoid it)
+
+It's tempting to instrument *everything*. Don't.
+
+Too many spans:
+- Makes traces unreadable (can't see the forest for the trees)
+- Adds performance overhead
+- Costs money in storage
+- Hides the important problems
+
+**Rule of thumb for manual instrumentation:**
+
+✅ **DO instrument:**
+- Operations that take meaningful time (>5ms)
+- Business-critical logic (payment processing, order fulfillment)
+- Operations that fail in interesting ways (external API calls)
+- Anything you've had trouble debugging before
+
+❌ **DON'T instrument:**
+- Tiny helper functions (<1ms)
+- Pure data transformations (formatting, parsing)
+- Getters/setters
+- Logging operations themselves
+
+**Instead of creating a span for trivial operations, just add an attribute to the parent span:**
+
+```javascript
+// ❌ Don't do this
+const span = tracer.startSpan('calculate_item_count');
+const count = items.length;
+span.end();
+
+// ✅ Do this instead
+span.setAttribute('order.item_count', items.length);
 ```
 
 **Key insight:** We'll learn more about this next week but the API (what we use in our code) is separate from the SDK (what processes the data). This separation means:
@@ -398,8 +500,8 @@ This is why OpenTelemetry won the observability standards war. It separates the 
 
 ## What I'm taking into Day 7
 
-Today's core insight: **Instrumentation is what creates spans. Auto-instrumentation handles infrastructure operations (HTTP, databases, queues). Manual instrumentation handles your custom business logic. Real systems need both.**
+Today's core insight: **Observability data (spans, metrics, logs) is created by instrumentation. Auto-instrumentation handles infrastructure automatically. Manual instrumentation handles your business logic. Both use the same OpenTelemetry APIs. Real systems need both.**
 
-Tomorrow we’ll do a quick recap and walk through a few extra details to make everything click.
+Tomorrow we'll do a Week 1 review and tie together everything we've learned.
 
 See you on Day 7!
