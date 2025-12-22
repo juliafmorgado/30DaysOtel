@@ -870,4 +870,6 @@ A user action becomes an HTTP request. Auto-instrumentation creates the root spa
 
 > > OpenTelemetry isn't just about collecting traces. It's about collecting all telemetry signals (metrics, traces, logs) in a *consistent, vendor-neutral way*, so you can answer production questions in minutes instead of hours—regardless of which backend you use.
 
-See you on Day 8, where we'll dive into the difference between the OpenTelemetry API and SDK—understanding the architecture and separation of concerns that makes OpenTelemetry vendor-neutral and portable across backends.
+See you on Day 8, where we'll dive into the difference between the OpenTelemetry API and SDK, understanding the architecture and separation of concerns that makes OpenTelemetry vendor-neutral and portable across backends.
+
+Don't forget to [test your knowledge](https://github.com/juliafmorgado/30DaysOtel/blob/main/week1/knowledge-check.md) from week 1!
