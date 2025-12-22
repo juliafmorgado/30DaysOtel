@@ -130,6 +130,18 @@ Span:
 
 You wrote zero observability code. The library applied semantic conventions.
 
+>[!NOTE]
+> **What's actually happening here (we'll learn more tomorrow):**
+> 
+> The Express library is calling the **OpenTelemetry Tracing API** behind the scenes:
+> ```javascript
+> span.setAttribute('http.method', 'POST');
+> span.setAttribute('http.route', '/pay');
+> span.setAttribute('http.status_code', 200);
+> ```
+> 
+> Tomorrow (Day 6) you'll learn WHO creates spans and WHEN you need to create them yourself using this same API.
+
 ### Step 3: Span goes to your observability backend (global)
 
 This span, along with spans from all your other services, gets stored in [Dash0](https://www.dash0.com/) for instance.
