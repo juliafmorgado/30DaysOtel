@@ -2,11 +2,23 @@
 
 Week 1 taught us *what* OpenTelemetry does. Week 2 will teach us *how* to use it.
 
-Today we're learning the difference between the **OpenTelemetry API** and **SDK**, and why this separation is the key to vendor-neutral observability.
+But first, we need to understand something important: **Remember `span.setAttribute()` from [Day 4](https://github.com/juliafmorgado/30DaysOtel/blob/main/week1/day4.md)? That's the API.** 
 
-## The problem: vendor lock-in
+Today we learn why it's separate from the SDK and why this separation is the key to vendor-neutral observability.
 
-Before OpenTelemetry, instrumenting your code meant committing to a specific vendor:
+## What we've already learned (without realizing it)
+
+Here's something that might click now: **We've been learning about the API all week.**
+
+- **Day 4:** When we learned `span.setAttribute('user.id', '12345')` — that's the API
+- **Day 5:** When we learned semantic conventions like `http.method` — those are used with the API
+- **Day 6:** When we learned auto-instrumentation — those libraries use the API
+
+The API isn't new. What's new today is understanding why it's separate from the SDK.
+
+## The problem this solves
+
+Before OpenTelemetry, instrumenting our code meant committing to a specific vendor:
 
 ```javascript
 // Using Vendor D's SDK
@@ -22,14 +34,30 @@ app.get('/users/:id', (req, res) => {
 });
 ```
 
-**Want to switch vendors?** Rewrite all your instrumentation code. Every `tracer.startSpan()` call. Every `span.setTag()`. Every import. That's vendor lock-in.
+**Want to switch vendors?** Rewrite all our instrumentation code. Every `tracer.startSpan()` call. Every `span.setTag()`. Every import.
+
+OpenTelemetry solved this with a clean separation.
 
 ## The solution: API/SDK separation
 
-OpenTelemetry splits this into two pieces:
+```
+Our Code (uses API)
+    ↓
+OpenTelemetry API (stable interface)
+    ↓
+OpenTelemetry SDK (configurable implementation)
+    ↓
+Exporter (OTLP, Jaeger, Console)
+    ↓
+Backend (Dash0, Jaeger, Tempo)
+```
 
-1. **API** (in your code) – Stable, vendor-neutral interface for creating telemetry
+OpenTelemetry splits observability into two pieces:
+
+1. **API** (in our code) – Stable, vendor-neutral interface for creating telemetry
 2. **SDK** (in config) – Pluggable implementation that sends data to backends
+
+Let's see this in action.
 
 **Application code uses the API:**
 
@@ -51,24 +79,29 @@ app.get('/users/:id', (req, res) => {
 **SDK configuration decides where data goes:**
 
 ```javascript
-// instrumentation.js
+// instrumentation.js - SDK configuration (you change this file to switch backends)
 const { NodeSDK } = require('@opentelemetry/sdk-node');
 const { OTLPTraceExporter } = require('@opentelemetry/exporter-trace-otlp-http');
 
 const sdk = new NodeSDK({
+  serviceName: 'user-service',
   traceExporter: new OTLPTraceExporter({
-    url: 'http://jaeger:4318/v1/traces',
+    url: process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'http://localhost:4318/v1/traces',
   }),
 });
 
 sdk.start();
+
+// To switch backends? Just change the exporter URL above.
+// Our application code in app.js doesn't change at all.
 ```
 
-**Switch backends?** Change one file:
+**Switch backends?** Change the exporter configuration:
 
 ```javascript
 // instrumentation.js - now sending to Dash0
 const sdk = new NodeSDK({
+  serviceName: 'user-service',
   traceExporter: new OTLPTraceExporter({
     url: process.env.DASH0_ENDPOINT,
     headers: { 'Authorization': `Bearer ${process.env.DASH0_AUTH_TOKEN}` },
@@ -78,9 +111,9 @@ const sdk = new NodeSDK({
 sdk.start();
 ```
 
-**Your application code didn't change.** That's the power of separation.
+**Our application code didn't change.** That's the power of separation.
 
-## The API: what you write in your code
+## The API: what we write in our code
 
 **Responsibilities:**
 - Create spans, metrics, logs
@@ -103,16 +136,20 @@ sdk.start();
 ```javascript
 const { trace } = require('@opentelemetry/api');
 
-// Get a tracer
+// Get a tracer (this is the API)
 const tracer = trace.getTracer('service-name');
 
-// Create a span
+// Create a span (API method)
 const span = tracer.startSpan('operation');
+
+// Add attributes (API method)
 span.setAttribute('key', 'value');
+
+// End the span (API method)
 span.end();
 ```
 
-## The SDK: what you configure once
+## The SDK: what we configure once
 
 **Responsibilities:**
 - Collect telemetry from the API
@@ -152,31 +189,7 @@ const sdk = new NodeSDK({
 sdk.start();
 ```
 
-## The architecture
-
-```
-Your Code (uses API)
-    ↓
-OpenTelemetry API (stable interface)
-    ↓
-OpenTelemetry SDK (configurable implementation)
-    ↓
-Exporter (OTLP, Jaeger, Console)
-    ↓
-Backend (Dash0, Jaeger, Tempo)
-```
-
 **Key insight:** API and SDK are loosely coupled. The API doesn't know what SDK is running. The SDK doesn't dictate the API.
-
->[!NOTE]
-> **OpenTelemetry-Native Backends**
->
-> Modern platforms like **Dash0** are built for OpenTelemetry:
-> - Use standard OTLP (no vendor-specific exporters)
-> - Understand semantic conventions natively
-> - No data transformation needed
->
-> This is the advantage of the OpenTelemetry ecosystem.
 
 ## Why the no-op implementation matters
 
@@ -190,119 +203,53 @@ span.end();                                   // No-op
 
 **Why this is useful:**
 
-1. **Testing:** Test instrumented code without backends
-2. **Gradual rollout:** Add instrumentation now, enable SDK later
-3. **Library instrumentation:** Libraries can use the API without forcing SDK dependencies on users
+### 1. Testing
+Test instrumented code without backends. Your tests run fast and don't need infrastructure.
 
-This is how auto-instrumentation works—libraries use the API, and if you configure an SDK, you get telemetry automatically.
+### 2. Gradual rollout
+Add instrumentation now, enable SDK later. We can instrument your code in development and enable the SDK in production when you're ready.
 
-## In practice: separate files
-
-**File 1: Application code (uses API only)**
-
-```javascript
-// app.js
-const express = require('express');
-const { trace } = require('@opentelemetry/api');
-
-const app = express();
-
-app.get('/users/:id', async (req, res) => {
-  const tracer = trace.getTracer('user-service');
-  const span = tracer.startSpan('get_user');
-  span.setAttribute('user.id', req.params.id);
-  
-  try {
-    const user = await fetchUser(req.params.id);
-    res.json(user);
-  } catch (error) {
-    span.recordException(error);
-    throw error;
-  } finally {
-    span.end();
-  }
-});
-
-app.listen(3000);
-```
-
-**File 2: SDK configuration (separate file)**
-
-```javascript
-// instrumentation.js
-const { NodeSDK } = require('@opentelemetry/sdk-node');
-const { getNodeAutoInstrumentations } = require('@opentelemetry/auto-instrumentations-node');
-const { OTLPTraceExporter } = require('@opentelemetry/exporter-trace-otlp-http');
-const { Resource } = require('@opentelemetry/resources');
-const { SemanticResourceAttributes } = require('@opentelemetry/semantic-conventions');
-
-const sdk = new NodeSDK({
-  resource: new Resource({
-    [SemanticResourceAttributes.SERVICE_NAME]: 'user-service',
-    [SemanticResourceAttributes.SERVICE_VERSION]: '1.0.0',
-  }),
-  traceExporter: new OTLPTraceExporter({
-    url: process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'http://localhost:4318/v1/traces',
-  }),
-  instrumentations: [getNodeAutoInstrumentations()],
-});
-
-sdk.start();
-```
-
-**Run:**
-
-```bash
-node --require ./instrumentation.js app.js
-```
+### 3. Library portability
+Libraries can use the API without forcing SDK dependencies on users. This is how auto-instrumentation works. Libraries use the API, and if we configure an SDK, we get telemetry automatically.
 
 ## SDK components (pluggable pieces)
 
-The SDK is modular. Key components:
+The SDK is modular. Key components we can configure:
 
 1. **Tracer Provider:** Implements `trace.getTracer()`
-2. **Span Processors:** BatchSpanProcessor (batches), SimpleSpanProcessor (immediate)
-3. **Exporters:** OTLPTraceExporter, JaegerExporter, ConsoleSpanExporter
-4. **Samplers:** TraceIdRatioBasedSampler (sample X%), ParentBasedSampler
+2. **Span Processors:** 
+   - `BatchSpanProcessor` (batches spans for efficiency)
+   - `SimpleSpanProcessor` (sends immediately, useful for debugging)
+3. **Exporters:** 
+   - `OTLPTraceExporter` (industry standard)
+   - `JaegerExporter` (legacy Jaeger format)
+   - `ConsoleSpanExporter` (prints to console for debugging)
+4. **Samplers:** 
+   - `TraceIdRatioBasedSampler` (sample X% of traces)
+   - `ParentBasedSampler` (follow parent's sampling decision)
 5. **Resource Detectors:** Auto-detect service name, host, pod name
 
-You can mix and match these without changing application code.
+We can mix and match these without changing application code.
 
-## Package separation
-
-API and SDK are separate packages:
-
-**Node.js:**
-```json
-{
-  "dependencies": {
-    "@opentelemetry/api": "^1.9.0",                    // API (stable)
-    "@opentelemetry/sdk-node": "^0.53.0",              // SDK
-    "@opentelemetry/exporter-trace-otlp-http": "^0.53.0",
-    "@opentelemetry/auto-instrumentations-node": "^0.53.0"
-  }
-}
-```
-
-**Python:**
-```
-opentelemetry-api==1.27.0
-opentelemetry-sdk==1.27.0
-opentelemetry-exporter-otlp==1.27.0
-```
-
-**Why separate?**
-- API is stable (v1.x for years)
-- SDK evolves faster (new features, bug fixes)
-- Libraries depend on API only, not SDK
+>[!NOTE]
+> **OpenTelemetry-Native Backends**
+>
+> Modern platforms like **Dash0** are built for OpenTelemetry:
+> - Use standard OTLP (no vendor-specific exporters needed)
+> - Understand semantic conventions natively
+> - No data transformation required
+>
+> This is the advantage of the OpenTelemetry ecosystem—native support means simpler configuration.
 
 ## Quick hands-on preview
+
+Let's see it work end-to-end.
 
 **Install:**
 ```bash
 npm install @opentelemetry/api \
             @opentelemetry/sdk-node \
-            @opentelemetry/exporter-trace-otlp-http \
+            @opentelemetry/sdk-trace-base \
             @opentelemetry/auto-instrumentations-node \
             express
 ```
@@ -319,6 +266,7 @@ const sdk = new NodeSDK({
 });
 
 sdk.start();
+console.log('OpenTelemetry SDK initialized');
 ```
 
 **Create app.js:**
@@ -337,16 +285,21 @@ app.get('/hello', (req, res) => {
   span.end();
 });
 
-app.listen(3000, () => console.log('Server running'));
+app.listen(3000, () => console.log('Server running on port 3000'));
 ```
 
 **Run:**
 ```bash
 node --require ./instrumentation.js app.js
+//The `--require` flag loads the SDK configuration before our application code runs.
+```
+
+**Test:**
+```bash
 curl http://localhost:3000/hello
 ```
 
-Spans print to console. Change `ConsoleSpanExporter` to `OTLPTraceExporter`, and they go to your backend instead. **App code unchanged.**
+Spans print to console. Change `ConsoleSpanExporter` to `OTLPTraceExporter`, and they go to our backend instead. **App code unchanged.**
 
 ## Common misconceptions
 
@@ -354,40 +307,19 @@ Spans print to console. Change `ConsoleSpanExporter` to `OTLPTraceExporter`, and
 ❌ No. API is a thin interface. SDK is the heavy implementation.
 
 **"I need to import the SDK in my application code"**  
-❌ No. Application code imports `@opentelemetry/api` only.
+❌ No. Application code imports `@opentelemetry/api` only. The SDK is loaded separately.
 
 **"Auto-instrumentation is part of the SDK"**  
 ⚠️ Kind of. Auto-instrumentation uses the API and works with any SDK.
 
 **"If I switch backends, I need to change my application code"**  
-❌ No. That's the whole point. Change SDK config only.
+❌ No. Change SDK config only (the `instrumentation.js` file).
 
-## When you'll use each
-
-**API (daily):**
-- Day 9: Create manual spans
-- Day 10: Record metrics
-- Day 11: Emit logs
-- Day 12: Work with context
-
-**SDK (once):**
-- Day 8: Initial setup
-- Day 13: Configure sampling
-- Day 13: Tune performance
-
-Most developers write API code constantly and touch SDK config rarely.
+**"If the API works without the SDK (no-op mode), the SDK also works without the API"**  
+❌ No. The SDK is literally an implementation of the API interface. Otherwise you have nothing to implement.
 
 ## What I'm taking into Day 9
 
-**Core insight:** The API/SDK separation is why OpenTelemetry is portable. Write instrumentation once (API), swap backends anytime (SDK config).
+**Core insight:** The API/SDK separation is why OpenTelemetry is portable. We write instrumentation code once using the API, and we can change where the data goes by reconfiguring the SDK.
 
-**Key takeaways:**
-- API = stable interface for creating telemetry
-- SDK = pluggable implementation for sending telemetry
-- Separation enables vendor neutrality
-- Libraries use API without forcing SDK choices
-- Backend changes = config changes, not code changes
-
-Tomorrow we dive into the **Tracing API**: creating nested spans, adding events, building rich traces. We'll get hands-on with Node.js and Python examples.
-
-See you on Day 9!
+See you on Day 9! 🚀
