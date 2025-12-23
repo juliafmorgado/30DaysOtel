@@ -1,18 +1,17 @@
 # Day 9 – Tracing API: Building Rich, Observable Request Stories
 
-Yesterday we learned that the OpenTelemetry API is what we use in our code, while the SDK handles configuration. Today we get hands-on with the **Tracing API**—the part of OpenTelemetry that lets us create detailed traces of our application's behavior.
-
-By the end of today hopefully we'll know how to:
-- Create custom spans for our business logic
-- Build nested span hierarchies that show call relationships
-- Add attributes that make spans searchable and debuggable
-- Record span events for point-in-time observations
-- Handle errors properly in spans
-- Use both manual and context-managed span creation
-
-This is where observability becomes practical. Let's build something.
+Yesterday we learned that the OpenTelemetry API is what we use in our code, while the SDK handles configuration. Today we get hands-on with the **Tracing API**, the part of OpenTelemetry that lets us create detailed traces of our application's behavior.
 
 ---
+## What we already know from Week 1
+
+Before we dive in, let's connect today's hands-on work to what we learned last week:
+
+- **[Day 4](https://github.com/juliafmorgado/30DaysOtel/edit/main/week1/day4.md):** We learned spans have names, attributes, and parent-child relationships → Today we'll create those ourselves
+- **[Day 5](https://github.com/juliafmorgado/30DaysOtel/edit/main/week1/day5.md):** We learned semantic conventions like `http.method` → Today we'll use them in `span.setAttribute()`
+- **[Day 6](https://github.com/juliafmorgado/30DaysOtel/edit/main/week1/day6.md):** We learned auto-instrumentation calls the Tracing API → Today we'll call the same API manually
+
+**The API methods aren't new, we've been learning about them all week.** Today we practice using them.
 
 ## What we're building today
 
@@ -66,7 +65,7 @@ tracer = trace.get_tracer(
 
 ---
 
-## Creating your first manual span
+## Creating our first manual span
 
 The simplest span creation:
 
@@ -90,7 +89,7 @@ process_order()
 span.end()
 ```
 
-**Critical:** Always call `span.end()`. Forgetting it means the span never finishes, breaking your trace.
+**Critical:** Always call `span.end()`. Forgetting it means the span never finishes, breaking our trace.
 
 ---
 
@@ -127,7 +126,7 @@ For the rest of today, we'll use context managers.
 
 ## Adding attributes: Making spans searchable
 
-Attributes turn timing data into stories. Without them, you see "this took 500ms." With them, you see "processing order #12345 for user premium-tier-user took 500ms."
+Attributes turn timing data into stories. Without them, you see "this took 500ms." With them, we see "processing order #12345 for user premium-tier-user took 500ms."
 
 ```javascript
 // Node.js
@@ -163,7 +162,7 @@ with tracer.start_as_current_span('process_order') as span:
 - Follow semantic conventions where they exist (we learned this on Day 5)
 - Use dot notation: `order.total`, not `order_total`
 
-**Now you can query:**
+**Now we can query:**
 ```
 # Find all failed orders over $100
 order.total > 100 AND status = ERROR
@@ -263,7 +262,7 @@ process_order (850ms)
 
 ## Span events: Point-in-time observations
 
-Sometimes you want to mark a moment in time within a span, without creating a whole new child span.
+Sometimes we want to mark a moment in time within a span, without creating a whole new child span.
 
 **Use cases:**
 - "Payment authorization succeeded"
@@ -425,7 +424,7 @@ process_order (850ms) [ERROR] ❌
       Stack trace: ...
 ```
 
-Now you can search for failed spans: `status = ERROR AND order.total > 100`
+Now we can search for failed spans: `status = ERROR AND order.total > 100`
 
 ---
 
@@ -643,13 +642,13 @@ handle_order_request (1850ms) [OK]
    └─ order.created_id = "ord_12345"
 ```
 
-**Now when something goes wrong, you see exactly where.**
+**Now when something goes wrong, we see exactly where.**
 
 ---
 
 ## Advanced: Adding attributes conditionally
 
-Sometimes you only want to add attributes based on outcomes:
+Sometimes we only want to add attributes based on outcomes:
 
 ```javascript
 tracer.startActiveSpan('apply_discount', async (span) => {
@@ -677,7 +676,7 @@ tracer.startActiveSpan('apply_discount', async (span) => {
 
 ## Advanced: Parallel operations (multiple child spans)
 
-Sometimes you have parallel work (e.g., checking inventory for multiple items):
+Sometimes we have parallel work (e.g., checking inventory for multiple items):
 
 ```javascript
 async function checkAllItemsInventory(items) {
@@ -718,7 +717,7 @@ check_all_items (450ms)
 └─ check_item_SKU789 (450ms)  ← Start: 0ms (parallel!)
 ```
 
-In a waterfall view, you'll see these bars overlapping, indicating parallel execution.
+In a waterfall view, we'll see these bars overlapping, indicating parallel execution.
 
 ---
 
@@ -848,7 +847,7 @@ tracer.startActiveSpan('calculate_total', async (span) => {
 
 ## What I'm taking into Day 10
 
-Today we learned the **Tracing API**—the core of manual instrumentation:
+Today we learned the **Tracing API**, the methods we call to create spans manually:
 
 **Key skills:**
 - Creating spans with `startActiveSpan` / `start_as_current_span`
@@ -858,7 +857,7 @@ Today we learned the **Tracing API**—the core of manual instrumentation:
 - Handling errors properly (`recordException`, `setStatus`)
 - Following best practices for production-ready instrumentation
 
-**The pattern:**
+**The pattern we'll use constantly:**
 ```javascript
 tracer.startActiveSpan('operation_name', async (span) => {
   span.setAttribute('key', 'value');
@@ -877,62 +876,6 @@ tracer.startActiveSpan('operation_name', async (span) => {
 });
 ```
 
-Tomorrow (Day 10), we'll learn the **Metrics API**: counters, gauges, and histograms for measuring what matters. Metrics are different from traces—they're aggregates, not individual requests—but they're equally powerful.
+Tomorrow (Day 10), we'll learn the **Metrics API**: counters, gauges, and histograms for measuring what matters. Metrics are different from traces as they're aggregates, not individual requests.
 
 See you on Day 10!
-
----
-
-## Extra: Quick reference
-
-### Node.js cheat sheet
-
-```javascript
-const { trace, SpanStatusCode } = require('@opentelemetry/api');
-const tracer = trace.getTracer('service-name', '1.0.0');
-
-// Create span
-tracer.startActiveSpan('operation', async (span) => {
-  // Add attribute
-  span.setAttribute('key', 'value');
-  
-  // Add event
-  span.addEvent('event_name', { 'key': 'value' });
-  
-  // Record exception
-  span.recordException(error);
-  
-  // Set status
-  span.setStatus({ code: SpanStatusCode.ERROR, message: 'Failed' });
-  
-  // End (or let context manager do it)
-  span.end();
-});
-```
-
-### Python cheat sheet
-
-```python
-from opentelemetry import trace
-from opentelemetry.trace import Status, StatusCode
-
-tracer = trace.get_tracer("service-name", "1.0.0")
-
-# Create span
-with tracer.start_as_current_span('operation') as span:
-    # Add attribute
-    span.set_attribute('key', 'value')
-    
-    # Add event
-    span.add_event('event_name', {'key': 'value'})
-    
-    # Record exception
-    span.record_exception(error)
-    
-    # Set status
-    span.set_status(Status(StatusCode.ERROR, "Failed"))
-```
-
----
-
-**Ready for Day 10?** We'll shift from individual requests (traces) to aggregate measurements (metrics). See you tomorrow!
