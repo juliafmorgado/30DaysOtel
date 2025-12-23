@@ -2,17 +2,15 @@
 
 Week 1 taught us *what* OpenTelemetry does. Week 2 will teach us *how* to use it.
 
-But first, we need to understand something important: **Remember `span.setAttribute()` from [Day 4](https://github.com/juliafmorgado/30DaysOtel/blob/main/week1/day4.md)? That's the API.** 
-
-Today we learn why it's separate from the SDK and why this separation is the key to vendor-neutral observability.
+Today we learn why the API is separate from the SDK and why this separation is the key to vendor-neutral observability.
 
 ## What we've already learned (without realizing it)
 
 Here's something that might click now: **We've been learning about the API all week.**
 
-- **Day 4:** When we learned `span.setAttribute('user.id', '12345')` — that's the API
-- **Day 5:** When we learned semantic conventions like `http.method` — those are used with the API
-- **Day 6:** When we learned auto-instrumentation — those libraries use the API
+- **[Day 4](https://github.com/juliafmorgado/30DaysOtel/blob/main/week1/day4.md):** When we learned `span.setAttribute('user.id', '12345')` — that's the API
+- **[Day 5](https://github.com/juliafmorgado/30DaysOtel/blob/main/week1/day5.md):** When we learned semantic conventions like `http.method` — those are used with the API
+- **[Day 6](https://github.com/juliafmorgado/30DaysOtel/blob/main/week1/day6.md):** When we learned auto-instrumentation — those libraries use the API
 
 The API isn't new. What's new today is understanding why it's separate from the SDK.
 
