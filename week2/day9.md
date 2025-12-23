@@ -2,7 +2,6 @@
 
 Yesterday we learned that the OpenTelemetry API is what we use in our code, while the SDK handles configuration. Today we get hands-on with the **Tracing API**, the part of OpenTelemetry that lets us create detailed traces of our application's behavior.
 
-
 > **Working example:** The complete code for this tutorial is available in [`examples/day9-tracing-api/`](../examples/day9-tracing-api/)
 
 ---
@@ -38,20 +37,20 @@ Then we'll add manual instrumentation to see exactly what's happening at each st
 Create a new directory and initialize it:
 
 ```bash
-mkdir otel-tracing-demo
-cd otel-tracing-demo
+mkdir otel-tracing
+cd otel-tracing
 npm init -y
 ```
 
 **Install dependencies:**
 
 ```bash
-npm install express @opentelemetry/api @opentelemetry/sdk-node @opentelemetry/auto-instrumentations-node @opentelemetry/exporter-trace-otlp-http
+npm install express @opentelemetry/api @opentelemetry/sdk-node @opentelemetry/resources @opentelemetry/semantic-conventions @opentelemetry/auto-instrumentations-node @opentelemetry/exporter-trace-otlp-http
 ```
 
 **Our project structure will be:**
 ```
-otel-tracing-demo/
+otel-tracing/
 ├── instrumentation.js    (SDK configuration)
 ├── app.js                (Express app with manual instrumentation)
 └── package.json
@@ -65,26 +64,32 @@ Create `instrumentation.js`:
 
 ```javascript
 // instrumentation.js
-const { NodeSDK } = require('@opentelemetry/sdk-node');
-const { getNodeAutoInstrumentations } = require('@opentelemetry/auto-instrumentations-node');
-const { OTLPTraceExporter } = require('@opentelemetry/exporter-trace-otlp-http');
+// instrumentation.js
+const { NodeSDK } = require("@opentelemetry/sdk-node");
+const { getNodeAutoInstrumentations } = require("@opentelemetry/auto-instrumentations-node");
+const { OTLPTraceExporter } = require("@opentelemetry/exporter-trace-otlp-http");
+const { Resource } = require("@opentelemetry/resources");
+const { SemanticResourceAttributes } = require("@opentelemetry/semantic-conventions");
 
 const sdk = new NodeSDK({
-  serviceName: 'order-service',
+  resource: new Resource({
+    [SemanticResourceAttributes.SERVICE_NAME]: "order-service",
+    [SemanticResourceAttributes.SERVICE_VERSION]: "1.0.0",
+  }),
   traceExporter: new OTLPTraceExporter({
-    url: 'http://localhost:4318/v1/traces',
+    url: "http://localhost:4318/v1/traces",
   }),
   instrumentations: [getNodeAutoInstrumentations()],
 });
 
 sdk.start();
-console.log('OpenTelemetry initialized');
+console.log("OpenTelemetry initialized");
 ```
 
 **What this does:**
 - Configures the SDK to send traces to Jaeger (running on localhost)
 - Enables auto-instrumentation for Express and other libraries
-- Sets the service name to "order-service"
+- Sets the service name to "order-service" using semantic conventions
 
 ---
 
