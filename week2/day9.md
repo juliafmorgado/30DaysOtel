@@ -10,9 +10,9 @@ Yesterday we learned that the OpenTelemetry API is what we use in our code, whil
 
 Before we dive in, let's connect today's hands-on work to what we learned last week:
 
-- **[Day 4](../../week1/day4.md):** We learned spans have names, attributes, and parent-child relationships → Today we'll create those ourselves
-- **[Day 5](../../week1/day5.md):** We learned semantic conventions like `http.method` → Today we'll use them in `span.setAttribute()`
-- **[Day 6](../../week1/day6.md):** We learned auto-instrumentation calls the Tracing API → Today we'll call the same API manually
+- **[Day 4](https://github.com/juliafmorgado/30DaysOtel/blob/main/week1/day4.md):** We learned spans have names, attributes, and parent-child relationships → Today we'll create those ourselves
+- **[Day 5](https://github.com/juliafmorgado/30DaysOtel/blob/main/week1/day5.md):** We learned semantic conventions like `http.method` → Today we'll use them in `span.setAttribute()`
+- **[Day 6](https://github.com/juliafmorgado/30DaysOtel/blob/main/week1/day6.md):** We learned auto-instrumentation calls the Tracing API → Today we'll call the same API manually
 
 **The API methods aren't new, we've been learning about them all week.** Today we practice using them.
 
