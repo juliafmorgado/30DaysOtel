@@ -87,11 +87,16 @@ You create **one setup file** (separate from your application code):
 ```javascript
 // instrumentation.js
 const { NodeSDK } = require('@opentelemetry/sdk-node');
+const { Resource } = require('@opentelemetry/resources');
+const { SemanticResourceAttributes } = require('@opentelemetry/semantic-conventions');
 const { getNodeAutoInstrumentations } = require('@opentelemetry/auto-instrumentations-node');
 const { OTLPTraceExporter } = require('@opentelemetry/exporter-trace-otlp-http');
 
 const sdk = new NodeSDK({
-  serviceName: 'user-service',
+  resource: new Resource({
+    [SemanticResourceAttributes.SERVICE_NAME]: 'user-service',
+    [SemanticResourceAttributes.SERVICE_VERSION]: '1.0.0',
+  }),
   traceExporter: new OTLPTraceExporter({
     url: 'http://localhost:4318/v1/traces',
   }),
@@ -263,14 +268,14 @@ Manual instrumentation means calling functions from the **OpenTelemetry API**.
 >- `meter.createCounter()` — Create a metric counter
 >- `counter.add(1)` — Increment the counter
 >
->**You've actually been learning about these functions all week without realizing it:**
+>**We've actually been learning about these functions all week without realizing it:**
 >
 >- **Day 4:** When you learned `span.setAttribute('user.id', '12345')` — that's the OpenTelemetry API
 >- **Day 5:** When you learned semantic conventions like `http.method` — those are used WITH the OpenTelemetry API
 >
 >**Auto-instrumentation and manual instrumentation both use the same API.** The only difference is:
->- Auto-instrumentation: Libraries call these functions for you
->- Manual instrumentation: You call these functions yourself
+>- Auto-instrumentation: Libraries call these functions for us
+>- Manual instrumentation: We call these functions ourselves
 
 ### The same payment example, with manual instrumentation
 
@@ -316,7 +321,7 @@ app.post('/pay', async (req, res) => {
 });
 ```
 
-**Now your trace shows everything:**
+**Now our trace shows everything:**
 
 ```
 POST /pay (500ms)
@@ -326,11 +331,11 @@ POST /pay (500ms)
 └─ send_confirmation_email (400ms)  ← Found the bottleneck!
 ```
 
-The email operation is taking 400ms. You check your email provider's status and see they're having an outage. **Problem identified in seconds.**
+The email operation is taking 400ms. You check the email provider's status and see they're having an outage. **Problem identified in seconds.**
 
 ### Manual instrumentation for metrics
 
-You can also manually record metrics:
+We can also manually record metrics:
 
 ```javascript
 const { metrics } = require('@opentelemetry/api');
@@ -364,11 +369,11 @@ app.post('/pay', async (req, res) => {
 });
 ```
 
-Now you can query: "How many USD credit card payments were processed in the last hour?"
+Now we can query: "How many USD credit card payments were processed in the last hour?"
 
 ### Manual instrumentation for logs
 
-You can emit structured logs with trace correlation:
+We can emit structured logs with trace correlation:
 
 ```javascript
 const { trace } = require('@opentelemetry/api');
@@ -390,15 +395,15 @@ app.post('/pay', async (req, res) => {
 });
 ```
 
-Now your logs are correlated with traces. You can search logs by trace ID and see exactly what happened in that specific request.
+Now our logs are correlated with traces. We can search logs by trace ID and see exactly what happened in that specific request.
 
 ## How auto and manual instrumentation work together
 
-You don't choose one or the other. You use **both**, and they complement each other.
+We don't choose one or the other. We use **both**, and they complement each other.
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│ Your Application Code                               │
+│ Our Application Code                               │
 │                                                      │
 │ app.post('/pay', async (req, res) => {             │
 │   validatePayment(req.body);  ← Manual span needed │
@@ -445,12 +450,12 @@ You don't choose one or the other. You use **both**, and they complement each ot
 
 **The key insight:** Auto-instrumentation and manual instrumentation both use the same OpenTelemetry API. They're not competing systems—they're two ways of calling the same functions.
 
-**Your strategy should be:**
+**The strategy should be:**
 
 1. **Start with auto-instrumentation** — Get 80% coverage with zero code changes
 2. **Identify gaps** — Look at traces and find "unexplained time"
 3. **Add manual instrumentation** — Fill those gaps with business context
-4. **Iterate** — Add more manual instrumentation as you discover what you need to see
+4. **Iterate** — Add more manual instrumentation as we discover what we need to see
 
 ## The biggest beginner mistake (and how to avoid it)
 
