@@ -13,487 +13,162 @@ Before we dive in, let's connect today's hands-on work to what we learned last w
 
 **The API methods aren't new, we've been learning about them all week.** Today we practice using them.
 
-## What we're building today
+## What we're building today: A simple order API
 
-We'll instrument a realistic order processing flow:
+We're going to build a minimal Express API with one endpoint: `POST /orders`. This endpoint will:
+1. Validate the order
+2. Check inventory
+3. Calculate shipping
+4. Process payment
+5. Save the order
 
+Then we'll add manual instrumentation to see exactly what's happening at each step.
+
+**By the end, we'll have:**
+- A working Node.js API with OpenTelemetry
+- Manual spans showing our business logic
+- A trace we can view in Jaeger
+
+---
+## Step 1: Set up the project
+
+Create a new directory and initialize it:
+
+```bash
+mkdir otel-tracing-demo
+cd otel-tracing-demo
+npm init -y
 ```
-User places order
-    ↓
-Validate order items
-    ↓
-Check inventory (parallel for each item)
-    ↓
-Calculate shipping cost
-    ↓
-Process payment
-    ↓
-Create order record
-    ↓
-Send confirmation
+
+**Install dependencies:**
+
+```bash
+npm install express @opentelemetry/api @opentelemetry/sdk-node @opentelemetry/auto-instrumentations-node @opentelemetry/exporter-trace-otlp-http
 ```
 
-Without instrumentation, if this flow is slow or fails, we're debugging blind. With the Tracing API, we'll see exactly where time is spent and what went wrong.
+**Our project structure will be:**
+```
+otel-tracing-demo/
+├── instrumentation.js    (SDK configuration)
+├── app.js                (Express app with manual instrumentation)
+└── package.json
+```
 
 ---
 
-## Setup: Get a tracer
+## Step 2: Configure OpenTelemetry (instrumentation.js)
 
-Before creating spans, we need a **tracer**. Think of it as our span factory:
-
-```javascript
-// Node.js
-const { trace } = require('@opentelemetry/api');
-
-const tracer = trace.getTracer(
-  'order-service',           // Service name
-  '1.0.0'                    // Optional: version
-);
-```
-
-```python
-# Python
-from opentelemetry import trace
-
-tracer = trace.get_tracer(
-    "order-service",
-    "1.0.0"
-)
-```
-
-**Best practice:** Get one tracer per service/library and reuse it. Don't create a new tracer for every span.
-
----
-
-## Creating our first manual span
-
-The simplest span creation:
+Create `instrumentation.js`:
 
 ```javascript
-// Node.js
-const span = tracer.startSpan('process_order');
+// instrumentation.js
+const { NodeSDK } = require('@opentelemetry/sdk-node');
+const { getNodeAutoInstrumentations } = require('@opentelemetry/auto-instrumentations-node');
+const { OTLPTraceExporter } = require('@opentelemetry/exporter-trace-otlp-http');
 
-// Do work
-processOrder();
-
-span.end();
-```
-
-```python
-# Python
-span = tracer.start_span('process_order')
-
-# Do work
-process_order()
-
-span.end()
-```
-
-**Critical:** Always call `span.end()`. Forgetting it means the span never finishes, breaking our trace.
-
----
-
-## The better way: Context managers
-
-Manual `span.end()` is error-prone. Use context managers instead:
-
-```javascript
-// Node.js - startActiveSpan
-tracer.startActiveSpan('process_order', (span) => {
-  try {
-    processOrder();
-  } finally {
-    span.end();
-  }
+const sdk = new NodeSDK({
+  serviceName: 'order-service',
+  traceExporter: new OTLPTraceExporter({
+    url: 'http://localhost:4318/v1/traces',
+  }),
+  instrumentations: [getNodeAutoInstrumentations()],
 });
-```
 
-```python
-# Python - with statement
-with tracer.start_as_current_span('process_order'):
-    process_order()
-```
-
-**Why this is better:**
-- `span.end()` is called automatically
-- Works with async/await
-- Handles exceptions properly
-- Sets the span as "active" (more on this later)
-
-For the rest of today, we'll use context managers.
-
----
-
-## Adding attributes: Making spans searchable
-
-Attributes turn timing data into stories. Without them, you see "this took 500ms." With them, we see "processing order #12345 for user premium-tier-user took 500ms."
-
-```javascript
-// Node.js
-tracer.startActiveSpan('process_order', (span) => {
-  // Add attributes
-  span.setAttribute('order.id', 'ord_12345');
-  span.setAttribute('order.total', 149.99);
-  span.setAttribute('order.currency', 'USD');
-  span.setAttribute('order.item_count', 3);
-  span.setAttribute('user.id', 'user_67890');
-  span.setAttribute('user.tier', 'premium');
-  
-  processOrder();
-  span.end();
-});
-```
-
-```python
-# Python
-with tracer.start_as_current_span('process_order') as span:
-    span.set_attribute('order.id', 'ord_12345')
-    span.set_attribute('order.total', 149.99)
-    span.set_attribute('order.currency', 'USD')
-    span.set_attribute('order.item_count', 3)
-    span.set_attribute('user.id', 'user_67890')
-    span.set_attribute('user.tier', 'premium')
-    
-    process_order()
-```
-
-**Naming convention:**
-- Use namespaces: `order.*`, `user.*`, `payment.*`
-- Follow semantic conventions where they exist (we learned this on Day 5)
-- Use dot notation: `order.total`, not `order_total`
-
-**Now we can query:**
-```
-# Find all failed orders over $100
-order.total > 100 AND status = ERROR
-
-# Find slow premium user orders
-user.tier = "premium" AND duration > 1000ms
-```
-
----
-
-## Nested spans: Showing the call hierarchy
-
-The power of tracing is seeing how operations relate. Nested spans show parent-child relationships.
-
-**Example: Order processing with nested operations**
-
-```javascript
-// Node.js
-async function processOrder(orderData) {
-  return tracer.startActiveSpan('process_order', async (orderSpan) => {
-    orderSpan.setAttribute('order.id', orderData.id);
-    orderSpan.setAttribute('order.total', orderData.total);
-    
-    try {
-      // Child span 1: Validate
-      await tracer.startActiveSpan('validate_order', async (validateSpan) => {
-        validateSpan.setAttribute('order.item_count', orderData.items.length);
-        await validateOrder(orderData);
-        validateSpan.end();
-      });
-      
-      // Child span 2: Check inventory
-      await tracer.startActiveSpan('check_inventory', async (inventorySpan) => {
-        const available = await checkInventory(orderData.items);
-        inventorySpan.setAttribute('inventory.all_available', available);
-        inventorySpan.end();
-      });
-      
-      // Child span 3: Process payment
-      await tracer.startActiveSpan('process_payment', async (paymentSpan) => {
-        paymentSpan.setAttribute('payment.amount', orderData.total);
-        paymentSpan.setAttribute('payment.method', orderData.paymentMethod);
-        await processPayment(orderData);
-        paymentSpan.end();
-      });
-      
-      return { success: true };
-    } finally {
-      orderSpan.end();
-    }
-  });
-}
-```
-
-```python
-# Python
-async def process_order(order_data):
-    with tracer.start_as_current_span('process_order') as order_span:
-        order_span.set_attribute('order.id', order_data['id'])
-        order_span.set_attribute('order.total', order_data['total'])
-        
-        # Child span 1: Validate
-        with tracer.start_as_current_span('validate_order') as validate_span:
-            validate_span.set_attribute('order.item_count', len(order_data['items']))
-            await validate_order(order_data)
-        
-        # Child span 2: Check inventory
-        with tracer.start_as_current_span('check_inventory') as inventory_span:
-            available = await check_inventory(order_data['items'])
-            inventory_span.set_attribute('inventory.all_available', available)
-        
-        # Child span 3: Process payment
-        with tracer.start_as_current_span('process_payment') as payment_span:
-            payment_span.set_attribute('payment.amount', order_data['total'])
-            payment_span.set_attribute('payment.method', order_data['payment_method'])
-            await process_payment(order_data)
-        
-        return {'success': True}
-```
-
-**The resulting trace:**
-
-```
-process_order (850ms)
-├─ validate_order (50ms)
-│  └─ order.item_count = 3
-├─ check_inventory (200ms)
-│  └─ inventory.all_available = true
-└─ process_payment (550ms)
-   ├─ payment.amount = 149.99
-   └─ payment.method = "credit_card"
-```
-
-**Key insight:** Using `startActiveSpan` (or `start_as_current_span`) automatically makes nested spans children of the active span. No manual parent management needed.
-
----
-
-## Span events: Point-in-time observations
-
-Sometimes we want to mark a moment in time within a span, without creating a whole new child span.
-
-**Use cases:**
-- "Payment authorization succeeded"
-- "Retry attempt #3"
-- "Cache miss"
-- "Rate limit warning"
-
-```javascript
-// Node.js
-tracer.startActiveSpan('process_payment', async (span) => {
-  span.setAttribute('payment.amount', 149.99);
-  
-  // Event: Starting authorization
-  span.addEvent('authorization_started', {
-    'payment.processor': 'stripe',
-    'payment.method': 'credit_card'
-  });
-  
-  const authResult = await authorizePayment();
-  
-  if (authResult.requires_3ds) {
-    // Event: 3D Secure required
-    span.addEvent('3ds_challenge_required', {
-      'challenge.url': authResult.challengeUrl
-    });
-  }
-  
-  // Event: Authorization completed
-  span.addEvent('authorization_completed', {
-    'authorization.id': authResult.id,
-    'authorization.status': authResult.status
-  });
-  
-  span.end();
-});
-```
-
-```python
-# Python
-with tracer.start_as_current_span('process_payment') as span:
-    span.set_attribute('payment.amount', 149.99)
-    
-    # Event: Starting authorization
-    span.add_event('authorization_started', {
-        'payment.processor': 'stripe',
-        'payment.method': 'credit_card'
-    })
-    
-    auth_result = await authorize_payment()
-    
-    if auth_result.requires_3ds:
-        # Event: 3D Secure required
-        span.add_event('3ds_challenge_required', {
-            'challenge.url': auth_result.challenge_url
-        })
-    
-    # Event: Authorization completed
-    span.add_event('authorization_completed', {
-        'authorization.id': auth_result.id,
-        'authorization.status': auth_result.status
-    })
-```
-
-**In trace UIs, events appear as markers on the span timeline**, showing exactly when they occurred.
-
-**When to use events vs child spans:**
-
-| Use Events | Use Child Spans |
-|------------|-----------------|
-| Instantaneous occurrences | Operations with duration |
-| Log-like observations | Nested work |
-| Minimal overhead | Full timing needed |
-| "Payment authorized" | "Authorize payment" |
-| "Cache miss" | "Check cache" |
-
----
-
-## Error handling: Recording exceptions
-
-When errors occur, we need to capture them in spans so they're visible in traces.
-
-### The wrong way (what NOT to do)
-
-```javascript
-// ❌ DON'T DO THIS
-tracer.startActiveSpan('process_order', (span) => {
-  try {
-    processOrder();
-  } catch (error) {
-    console.log('Error:', error);  // Just logging
-  }
-  span.end();
-});
-```
-
-**Problem:** The span looks successful. The error is invisible in traces.
-
-### The right way
-
-```javascript
-// ✅ Node.js - Proper error handling
-const { SpanStatusCode } = require('@opentelemetry/api');
-
-tracer.startActiveSpan('process_order', async (span) => {
-  try {
-    await processOrder();
-    span.setStatus({ code: SpanStatusCode.OK });
-  } catch (error) {
-    // 1. Record the exception (includes stack trace)
-    span.recordException(error);
-    
-    // 2. Mark span as failed
-    span.setStatus({
-      code: SpanStatusCode.ERROR,
-      message: error.message
-    });
-    
-    // 3. Re-throw so app handles it normally
-    throw error;
-  } finally {
-    span.end();
-  }
-});
-```
-
-```python
-# ✅ Python - Proper error handling
-from opentelemetry.trace import Status, StatusCode
-
-with tracer.start_as_current_span('process_order') as span:
-    try:
-        await process_order()
-        span.set_status(Status(StatusCode.OK))
-    except Exception as e:
-        # 1. Record the exception
-        span.record_exception(e)
-        
-        # 2. Mark span as failed
-        span.set_status(Status(StatusCode.ERROR, str(e)))
-        
-        # 3. Re-raise
-        raise
+sdk.start();
+console.log('OpenTelemetry initialized');
 ```
 
 **What this does:**
-- `recordException()`/`record_exception()`: Attaches error message, type, and stack trace to span
-- `setStatus(ERROR)`: Marks span as failed (turns red in UIs)
-- `throw`/`raise`: Lets your app handle the error normally (return 500, retry, etc.)
-
-**The resulting trace:**
-
-```
-process_order (850ms) [ERROR] ❌
-├─ validate_order (50ms) [OK]
-├─ check_inventory (200ms) [OK]
-└─ process_payment (550ms) [ERROR] ❌
-   └─ Exception: InsufficientFundsError
-      Message: "Card declined: insufficient funds"
-      Stack trace: ...
-```
-
-Now we can search for failed spans: `status = ERROR AND order.total > 100`
+- Configures the SDK to send traces to Jaeger (running on localhost)
+- Enables auto-instrumentation for Express and other libraries
+- Sets the service name to "order-service"
 
 ---
 
-## Span status: More than just errors
+## Step 3: Create the Express app (app.js)
 
-Spans have three status codes:
-
-| Status | Meaning | When to use |
-|--------|---------|-------------|
-| `UNSET` | Default (neutral) | Most spans |
-| `OK` | Explicitly successful | Operations where success needs confirmation |
-| `ERROR` | Failed | Caught exceptions, validation failures, timeouts |
+Create `app.js`:
 
 ```javascript
-// Node.js
-const { SpanStatusCode } = require('@opentelemetry/api');
-
-// Explicitly mark success
-span.setStatus({ code: SpanStatusCode.OK });
-
-// Mark failure
-span.setStatus({ 
-  code: SpanStatusCode.ERROR, 
-  message: 'Validation failed: missing required field' 
-});
-
-// Leave unset (most common)
-// span.setStatus() not called
-```
-
-**When to explicitly set OK:**
-- Payment processing (confirm success)
-- Data validation (passed all checks)
-- Critical operations where success matters
-
-**Most spans don't need explicit OK.** `UNSET` is fine.
-
----
-
-## Real-world example: Complete order processing
-
-Let's put it all together with a realistic, production-ready example:
-
-```javascript
-// Node.js - Complete example
+// app.js
+const express = require('express');
 const { trace, SpanStatusCode } = require('@opentelemetry/api');
 
+const app = express();
+app.use(express.json());
+
+// Get a tracer (our span factory)
 const tracer = trace.getTracer('order-service', '1.0.0');
 
-async function handleOrderRequest(req, res) {
-  return tracer.startActiveSpan('handle_order_request', async (rootSpan) => {
-    rootSpan.setAttribute('http.method', req.method);
-    rootSpan.setAttribute('http.route', '/orders');
+// Helper functions (simulated business logic)
+async function validateOrder(orderData) {
+  // Simulate validation time
+  await new Promise(resolve => setTimeout(resolve, 50));
+  
+  if (!orderData.items || orderData.items.length === 0) {
+    throw new Error('Order must contain items');
+  }
+  if (!orderData.userId) {
+    throw new Error('Order must have a userId');
+  }
+}
+
+async function checkInventory(items) {
+  // Simulate inventory check
+  await new Promise(resolve => setTimeout(resolve, 200));
+  
+  return {
+    allAvailable: true,
+    unavailableItems: []
+  };
+}
+
+async function calculateShipping(orderData) {
+  // Simulate shipping calculation
+  await new Promise(resolve => setTimeout(resolve, 100));
+  
+  return 12.99;
+}
+
+async function processPayment(amount, method) {
+  // Simulate payment processing
+  await new Promise(resolve => setTimeout(resolve, 500));
+  
+  return {
+    authId: 'auth_' + Math.random().toString(36).substr(2, 9),
+    status: 'approved'
+  };
+}
+
+async function saveOrder(orderData) {
+  // Simulate database save
+  await new Promise(resolve => setTimeout(resolve, 150));
+  
+  return 'ord_' + Math.random().toString(36).substr(2, 9);
+}
+
+// Our instrumented endpoint
+app.post('/orders', async (req, res) => {
+  // The root span is created automatically by Express auto-instrumentation
+  // Now we add our manual spans for business logic
+  
+  return tracer.startActiveSpan('process_order', async (orderSpan) => {
+    const orderData = req.body;
+    
+    // Add business attributes to the root span
+    orderSpan.setAttribute('order.item_count', orderData.items?.length || 0);
+    orderSpan.setAttribute('order.user_id', orderData.userId);
     
     try {
-      const orderData = req.body;
-      
       // Step 1: Validate
       await tracer.startActiveSpan('validate_order', async (span) => {
-        span.setAttribute('order.id', orderData.id);
-        span.setAttribute('order.item_count', orderData.items.length);
-        
         try {
-          await validateOrderData(orderData);
+          await validateOrder(orderData);
           span.addEvent('validation_passed');
           span.setStatus({ code: SpanStatusCode.OK });
         } catch (error) {
           span.recordException(error);
-          span.setStatus({ code: SpanStatusCode.ERROR, message: 'Validation failed' });
+          span.setStatus({ code: SpanStatusCode.ERROR, message: error.message });
           throw error;
         } finally {
           span.end();
@@ -507,13 +182,6 @@ async function handleOrderRequest(req, res) {
         try {
           const result = await checkInventory(orderData.items);
           span.setAttribute('inventory.all_available', result.allAvailable);
-          
-          if (!result.allAvailable) {
-            span.addEvent('inventory_shortage', {
-              'unavailable_items': result.unavailableItems.join(', ')
-            });
-          }
-          
           span.setStatus({ code: SpanStatusCode.OK });
           return result;
         } catch (error) {
@@ -526,13 +194,12 @@ async function handleOrderRequest(req, res) {
       });
       
       if (!inventoryResult.allAvailable) {
-        throw new Error('Items out of stock');
+        throw new Error('Some items are out of stock');
       }
       
       // Step 3: Calculate shipping
       const shippingCost = await tracer.startActiveSpan('calculate_shipping', async (span) => {
-        span.setAttribute('shipping.destination', orderData.address.country);
-        span.setAttribute('shipping.weight_kg', orderData.totalWeight);
+        span.setAttribute('shipping.destination', orderData.address?.country || 'US');
         
         try {
           const cost = await calculateShipping(orderData);
@@ -549,21 +216,17 @@ async function handleOrderRequest(req, res) {
       });
       
       // Step 4: Process payment
+      const totalAmount = (orderData.total || 100) + shippingCost;
+      
       await tracer.startActiveSpan('process_payment', async (span) => {
-        const totalAmount = orderData.total + shippingCost;
-        
         span.setAttribute('payment.amount', totalAmount);
-        span.setAttribute('payment.currency', orderData.currency);
-        span.setAttribute('payment.method', orderData.paymentMethod);
+        span.setAttribute('payment.currency', 'USD');
+        span.setAttribute('payment.method', orderData.paymentMethod || 'credit_card');
         
         try {
           span.addEvent('payment_authorization_started');
           
-          const paymentResult = await authorizePayment({
-            amount: totalAmount,
-            currency: orderData.currency,
-            method: orderData.paymentMethod
-          });
+          const paymentResult = await processPayment(totalAmount, orderData.paymentMethod);
           
           span.setAttribute('payment.authorization_id', paymentResult.authId);
           span.addEvent('payment_authorization_completed', {
@@ -580,10 +243,10 @@ async function handleOrderRequest(req, res) {
         }
       });
       
-      // Step 5: Create order record
-      const orderId = await tracer.startActiveSpan('create_order_record', async (span) => {
+      // Step 5: Save order
+      const orderId = await tracer.startActiveSpan('save_order', async (span) => {
         try {
-          const id = await createOrderInDatabase(orderData);
+          const id = await saveOrder(orderData);
           span.setAttribute('order.created_id', id);
           span.setStatus({ code: SpanStatusCode.OK });
           return id;
@@ -597,274 +260,217 @@ async function handleOrderRequest(req, res) {
       });
       
       // Success!
-      rootSpan.setAttribute('order.final_id', orderId);
-      rootSpan.setAttribute('http.status_code', 201);
-      rootSpan.setStatus({ code: SpanStatusCode.OK });
+      orderSpan.setAttribute('order.final_id', orderId);
+      orderSpan.setStatus({ code: SpanStatusCode.OK });
       
-      res.status(201).json({ orderId, status: 'created' });
-      
-    } catch (error) {
-      rootSpan.recordException(error);
-      rootSpan.setAttribute('http.status_code', error.statusCode || 500);
-      rootSpan.setStatus({ code: SpanStatusCode.ERROR, message: error.message });
-      
-      res.status(error.statusCode || 500).json({ error: error.message });
-    } finally {
-      rootSpan.end();
-    }
-  });
-}
-```
-
-**The resulting trace shows:**
-
-```
-handle_order_request (1850ms) [OK]
-├─ validate_order (50ms) [OK]
-│  ├─ order.id = "ord_12345"
-│  ├─ order.item_count = 3
-│  └─ Event: validation_passed
-├─ check_inventory (200ms) [OK]
-│  ├─ inventory.item_count = 3
-│  └─ inventory.all_available = true
-├─ calculate_shipping (100ms) [OK]
-│  ├─ shipping.destination = "US"
-│  ├─ shipping.weight_kg = 2.5
-│  └─ shipping.cost = 12.99
-├─ process_payment (1200ms) [OK]
-│  ├─ payment.amount = 162.98
-│  ├─ payment.currency = "USD"
-│  ├─ payment.method = "credit_card"
-│  ├─ Event: payment_authorization_started
-│  ├─ Event: payment_authorization_completed
-│  └─ payment.authorization_id = "auth_xyz789"
-└─ create_order_record (300ms) [OK]
-   └─ order.created_id = "ord_12345"
-```
-
-**Now when something goes wrong, we see exactly where.**
-
----
-
-## Advanced: Adding attributes conditionally
-
-Sometimes we only want to add attributes based on outcomes:
-
-```javascript
-tracer.startActiveSpan('apply_discount', async (span) => {
-  span.setAttribute('discount.code', discountCode);
-  
-  const discount = await calculateDiscount(discountCode);
-  
-  if (discount.applied) {
-    span.setAttribute('discount.amount', discount.amount);
-    span.setAttribute('discount.percentage', discount.percentage);
-    span.addEvent('discount_applied');
-  } else {
-    span.setAttribute('discount.applied', false);
-    span.setAttribute('discount.reason', discount.reason);
-    span.addEvent('discount_rejected', {
-      'rejection.reason': discount.reason
-    });
-  }
-  
-  span.end();
-});
-```
-
----
-
-## Advanced: Parallel operations (multiple child spans)
-
-Sometimes we have parallel work (e.g., checking inventory for multiple items):
-
-```javascript
-async function checkAllItemsInventory(items) {
-  return tracer.startActiveSpan('check_all_items', async (parentSpan) => {
-    parentSpan.setAttribute('items.count', items.length);
-    
-    // Create child spans in parallel
-    const checks = items.map(item =>
-      tracer.startActiveSpan(`check_item_${item.sku}`, async (itemSpan) => {
-        itemSpan.setAttribute('item.sku', item.sku);
-        itemSpan.setAttribute('item.quantity', item.quantity);
-        
-        try {
-          const available = await checkItemInventory(item);
-          itemSpan.setAttribute('item.available', available);
-          return available;
-        } finally {
-          itemSpan.end();
-        }
-      })
-    );
-    
-    const results = await Promise.all(checks);
-    parentSpan.setAttribute('all_available', results.every(r => r));
-    parentSpan.end();
-    
-    return results;
-  });
-}
-```
-
-**The trace shows parallel spans:**
-
-```
-check_all_items (450ms)
-├─ check_item_SKU123 (200ms)  ← Start: 0ms
-├─ check_item_SKU456 (300ms)  ← Start: 0ms (parallel!)
-└─ check_item_SKU789 (450ms)  ← Start: 0ms (parallel!)
-```
-
-In a waterfall view, we'll see these bars overlapping, indicating parallel execution.
-
----
-
-## Best practices summary
-
-### ✅ Do:
-- Use `startActiveSpan` / `start_as_current_span` (context managers)
-- Always call `span.end()` (or let context manager do it)
-- Record exceptions with `recordException()` / `record_exception()`
-- Set span status to `ERROR` when failures occur
-- Add meaningful attributes (order ID, user ID, amounts)
-- Use semantic conventions where they exist
-- Re-throw errors after recording them
-
-### ❌ Don't:
-- Forget to call `span.end()`
-- Swallow errors without recording them in spans
-- Add high-cardinality attributes everywhere (be selective)
-- Create spans for trivial operations (<1ms)
-- Use span names with dynamic values (`process_order_12345` ❌)
-
----
-
-## Common patterns
-
-### Pattern 1: Retry logic with events
-
-```javascript
-tracer.startActiveSpan('call_external_api', async (span) => {
-  let attempts = 0;
-  const maxAttempts = 3;
-  
-  while (attempts < maxAttempts) {
-    attempts++;
-    span.addEvent('retry_attempt', { 'attempt': attempts });
-    
-    try {
-      const result = await callAPI();
-      span.setAttribute('attempts', attempts);
-      span.setStatus({ code: SpanStatusCode.OK });
-      return result;
-    } catch (error) {
-      if (attempts === maxAttempts) {
-        span.recordException(error);
-        span.setStatus({ code: SpanStatusCode.ERROR });
-        throw error;
-      }
-      await sleep(1000 * attempts);
-    }
-  }
-  
-  span.end();
-});
-```
-
-### Pattern 2: Conditional spans
-
-```javascript
-async function processOrder(orderData) {
-  return tracer.startActiveSpan('process_order', async (span) => {
-    // Always validate
-    await validateOrder(orderData);
-    
-    // Only check fraud for high-value orders
-    if (orderData.total > 1000) {
-      await tracer.startActiveSpan('fraud_check', async (fraudSpan) => {
-        const riskScore = await checkFraud(orderData);
-        fraudSpan.setAttribute('fraud.risk_score', riskScore);
-        fraudSpan.end();
+      res.status(201).json({
+        orderId,
+        status: 'created',
+        total: totalAmount
       });
+      
+    } catch (error) {
+      orderSpan.recordException(error);
+      orderSpan.setStatus({ code: SpanStatusCode.ERROR, message: error.message });
+      
+      res.status(400).json({ error: error.message });
+    } finally {
+      orderSpan.end();
     }
-    
-    await processPayment(orderData);
-    span.end();
   });
-}
-```
+});
 
-### Pattern 3: Enriching spans with computed values
+// Health check endpoint (no manual instrumentation needed)
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok' });
+});
 
-```javascript
-tracer.startActiveSpan('calculate_total', async (span) => {
-  const subtotal = calculateSubtotal(items);
-  const tax = calculateTax(subtotal);
-  const shipping = calculateShipping(address);
-  const total = subtotal + tax + shipping;
-  
-  // Add all computed values
-  span.setAttribute('order.subtotal', subtotal);
-  span.setAttribute('order.tax', tax);
-  span.setAttribute('order.shipping', shipping);
-  span.setAttribute('order.total', total);
-  span.setAttribute('order.tax_rate', tax / subtotal);
-  
-  span.end();
-  return total;
+const PORT = 3000;
+app.listen(PORT, () => {
+  console.log(`Order service listening on port ${PORT}`);
 });
 ```
 
 ---
 
-## Troubleshooting
+## Step 4: Start Jaeger (to view traces)
 
-### "My spans aren't showing up in traces"
+We need a backend to receive and visualize traces. Let's use Jaeger. You should have Docker Desktop installed and running.
 
-**Checklist:**
-1. ✅ SDK is initialized and started?
-2. ✅ Exporter is configured correctly?
-3. ✅ Calling `span.end()`?
-4. ✅ Sampling rate isn't 0?
-5. ✅ Using `startActiveSpan` (not just `startSpan`)?
+```bash
+docker run -d --name jaeger \
+  -p 16686:16686 \
+  -p 4318:4318 \
+  jaegertracing/all-in-one:latest
+```
 
-### "My nested spans aren't showing parent-child relationships"
-
-**Problem:** You're probably using `startSpan()` instead of `startActiveSpan()`.
-
-**Solution:** Use `startActiveSpan()` to automatically set the active span context.
-
-### "Spans are showing up but attributes are missing"
-
-**Checklist:**
-1. ✅ Calling `setAttribute()` before `span.end()`?
-2. ✅ Attribute values are serializable (no objects, use primitives)?
-3. ✅ Check backend limits (some truncate attributes)?
+**Open Jaeger UI:** http://localhost:16686
 
 ---
 
-## What I'm taking into Day 10
+## Step 5: Run your application
 
-Today we learned the **Tracing API**, the methods we call to create spans manually:
+Start your app with OpenTelemetry enabled:
 
-**Key skills:**
-- Creating spans with `startActiveSpan` / `start_as_current_span`
-- Building nested hierarchies that show call relationships
-- Adding attributes for searchability
-- Recording events for point-in-time observations
-- Handling errors properly (`recordException`, `setStatus`)
-- Following best practices for production-ready instrumentation
+```bash
+node --require ./instrumentation.js app.js
+```
 
-**The pattern we'll use constantly:**
+You should see:
+```
+OpenTelemetry initialized
+Order service listening on port 3000
+```
+
+---
+
+## Step 6: Send a test request
+
+Open a new terminal and send a request:
+
+```bash
+curl -X POST http://localhost:3000/orders \
+  -H "Content-Type: application/json" \
+  -d '{
+    "userId": "user_123",
+    "items": [
+      {"sku": "WIDGET-1", "quantity": 2},
+      {"sku": "GADGET-5", "quantity": 1}
+    ],
+    "total": 99.99,
+    "paymentMethod": "credit_card",
+    "address": {
+      "country": "US"
+    }
+  }'
+```
+
+**Expected response:**
+```json
+{
+  "orderId": "ord_abc123",
+  "status": "created",
+  "total": 112.98
+}
+```
+
+---
+
+## Step 7: View your trace in Jaeger
+
+1. Open http://localhost:16686
+2. Select **"order-service"** from the Service dropdown
+3. Click **"Find Traces"**
+4. Click on the trace
+
+**You should see:**
+
+```
+POST /orders (1000ms) [Auto-instrumented by Express]
+└─ process_order (1000ms) [Your manual span]
+   ├─ validate_order (50ms)
+   │  └─ Event: validation_passed
+   ├─ check_inventory (200ms)
+   │  └─ inventory.all_available = true
+   ├─ calculate_shipping (100ms)
+   │  └─ shipping.cost = 12.99
+   ├─ process_payment (500ms)
+   │  ├─ Event: payment_authorization_started
+   │  ├─ Event: payment_authorization_completed
+   │  └─ payment.authorization_id = "auth_xyz"
+   └─ save_order (150ms)
+      └─ order.created_id = "ord_abc123"
+```
+
+---
+## What just happened?
+
+Let's break down the code you wrote:
+
+### 1. Auto-instrumentation (you didn't write this)
+
+Express auto-instrumentation created the root span automatically:
 ```javascript
-tracer.startActiveSpan('operation_name', async (span) => {
+// This happened automatically when the request arrived
+POST /orders
+  http.method = "POST"
+  http.route = "/orders"
+  http.status_code = 201
+```
+
+### 2. Your manual instrumentation (you wrote this)
+
+You wrapped your business logic in spans:
+
+```javascript
+tracer.startActiveSpan('process_order', async (orderSpan) => {
+  orderSpan.setAttribute('order.item_count', 2);
+  orderSpan.setAttribute('order.user_id', 'user_123');
+  
+  // ... more business logic ...
+  
+  orderSpan.end();
+});
+```
+
+**Key API methods you used:**
+- `trace.getTracer()` → Get a tracer (Day 6 concept: who creates spans)
+- `tracer.startActiveSpan()` → Create a span (Day 4 concept: what's in a span)
+- `span.setAttribute()` → Add attributes (Day 5 concept: semantic conventions)
+- `span.addEvent()` → Mark a point in time
+- `span.recordException()` → Capture errors
+- `span.setStatus()` → Mark success/failure
+- `span.end()` → Finish the span
+
+---
+
+## Experiment: Trigger an error
+
+Let's see what happens when something fails.
+
+**Send a request with missing data:**
+
+```bash
+curl -X POST http://localhost:3000/orders \
+  -H "Content-Type: application/json" \
+  -d '{
+    "userId": "user_123",
+    "items": []
+  }'
+```
+
+**Expected response:**
+```json
+{
+  "error": "Order must contain items"
+}
+```
+
+**Now check Jaeger:**
+
+The trace will show:
+```
+POST /orders [ERROR] ❌
+└─ process_order [ERROR] ❌
+   └─ validate_order [ERROR] ❌
+      └─ Exception: Error: Order must contain items
+         Stack trace: ...
+```
+
+The error was captured in the span and is now searchable in Jaeger!
+
+---
+
+## Key patterns you learned
+
+### Pattern 1: Wrapping business logic in spans
+
+```javascript
+await tracer.startActiveSpan('operation_name', async (span) => {
   span.setAttribute('key', 'value');
   
   try {
-    // Do work
-    span.addEvent('milestone_reached');
+    await doWork();
     span.setStatus({ code: SpanStatusCode.OK });
   } catch (error) {
     span.recordException(error);
@@ -876,6 +482,185 @@ tracer.startActiveSpan('operation_name', async (span) => {
 });
 ```
 
-Tomorrow (Day 10), we'll learn the **Metrics API**: counters, gauges, and histograms for measuring what matters. Metrics are different from traces as they're aggregates, not individual requests.
+### Pattern 2: Adding business context with attributes
+
+```javascript
+span.setAttribute('order.id', orderId);
+span.setAttribute('order.total', 99.99);
+span.setAttribute('user.id', userId);
+```
+
+### Pattern 3: Marking milestones with events
+
+```javascript
+span.addEvent('payment_authorization_started');
+// ... work happens ...
+span.addEvent('payment_authorization_completed', {
+  'authorization.id': authId
+});
+```
+
+### Pattern 4: Proper error handling
+
+```javascript
+try {
+  await processPayment();
+} catch (error) {
+  span.recordException(error);          // Capture the error
+  span.setStatus({ code: SpanStatusCode.ERROR });  // Mark span as failed
+  throw error;                          // Re-throw so app handles it
+}
+```
+
+---
+
+## Exercises to try
+
+### Exercise 1: Add more attributes
+
+Add these attributes to the `process_order` span:
+- `order.total`
+- `order.currency`
+- `order.payment_method`
+
+### Exercise 2: Add a new span
+
+Add manual instrumentation for a "send confirmation email" step:
+
+```javascript
+await tracer.startActiveSpan('send_confirmation_email', async (span) => {
+  span.setAttribute('email.recipient', orderData.email);
+  
+  // Simulate sending email
+  await new Promise(resolve => setTimeout(resolve, 300));
+  
+  span.addEvent('email_sent');
+  span.end();
+});
+```
+
+### Exercise 3: Simulate a payment failure
+
+Modify `processPayment()` to randomly fail:
+
+```javascript
+async function processPayment(amount, method) {
+  await new Promise(resolve => setTimeout(resolve, 500));
+  
+  // 30% chance of failure
+  if (Math.random() < 0.3) {
+    throw new Error('Payment declined: insufficient funds');
+  }
+  
+  return {
+    authId: 'auth_' + Math.random().toString(36).substr(2, 9),
+    status: 'approved'
+  };
+}
+```
+
+Send multiple requests and see how failed traces look in Jaeger.
+
+---
+
+## How this connects to auto-instrumentation
+
+Remember from Day 6: auto-instrumentation and manual instrumentation both use the same API.
+
+**What auto-instrumentation does (Express library):**
+```javascript
+// This happens automatically inside the Express library
+tracer.startActiveSpan(`${req.method} ${req.route}`, (span) => {
+  span.setAttribute('http.method', req.method);
+  span.setAttribute('http.route', req.route);
+  // ... your route handler runs ...
+  span.end();
+});
+```
+
+**What you write manually:**
+```javascript
+// You write this in your application code
+tracer.startActiveSpan('process_order', (span) => {
+  span.setAttribute('order.id', orderId);
+  // ... your business logic ...
+  span.end();
+});
+```
+
+**Same API. Different operations.** Auto-instrumentation = infrastructure spans (HTTP, database). Manual instrumentation = business logic spans (order processing, payments). Both appear in the same trace.
+
+---
+
+## Best practices (from today's code)
+
+### ✅ Do:
+- Use `startActiveSpan` (context manager pattern)
+- Always call `span.end()` (or let the callback do it)
+- Record exceptions with `span.recordException(error)`
+- Set span status to `ERROR` when failures occur
+- Add meaningful attributes (`order.id`, `payment.amount`)
+- Re-throw errors after recording them (so your app handles them normally)
+
+### ❌ Don't:
+- Forget to call `span.end()`
+- Swallow errors without recording them
+- Use high-cardinality attributes (like timestamps or UUIDs) as span names
+- Create spans for trivial operations (<1ms)
+
+---
+
+## Troubleshooting
+
+### "I don't see traces in Jaeger"
+
+**Checklist:**
+1. ✅ Is Jaeger running? Check http://localhost:16686
+2. ✅ Did you start your app with `--require ./instrumentation.js`?
+3. ✅ Are you calling `span.end()`?
+4. ✅ Check the console for errors
+
+### "My nested spans aren't showing up as children"
+
+You're probably using `tracer.startSpan()` instead of `tracer.startActiveSpan()`. Use `startActiveSpan()` to automatically set parent-child relationships.
+
+### "Attributes are missing"
+
+Make sure you call `span.setAttribute()` **before** `span.end()`.
+
+---
+
+## What I'm taking into Day 10
+
+Today we learned the **Tracing API** by building a real Express app:
+
+**Key skills:**
+- Setting up OpenTelemetry with Express
+- Creating manual spans with `tracer.startActiveSpan()`
+- Adding attributes with `span.setAttribute()`
+- Recording events with `span.addEvent()`
+- Handling errors with `span.recordException()` and `span.setStatus()`
+- Viewing traces in Jaeger
+
+**The pattern we'll use constantly:**
+```javascript
+tracer.startActiveSpan('operation_name', async (span) => {
+  span.setAttribute('key', 'value');
+  
+  try {
+    await doWork();
+    span.setStatus({ code: SpanStatusCode.OK });
+  } catch (error) {
+    span.recordException(error);
+    span.setStatus({ code: SpanStatusCode.ERROR });
+    throw error;
+  } finally {
+    span.end();
+  }
+});
+```
+
+**Tomorrow (Day 10):** We'll learn the **Metrics API** and add counters, histograms, and gauges to track aggregate patterns (like "orders per minute" or "average order value").
 
 See you on Day 10!
+
