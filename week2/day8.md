@@ -57,60 +57,6 @@ OpenTelemetry splits observability into two pieces:
 
 Let's see this in action.
 
-**Application code uses the API:**
-
-```javascript
-// app.js
-const { trace } = require('@opentelemetry/api');
-
-app.get('/users/:id', (req, res) => {
-  const tracer = trace.getTracer('user-service');
-  const span = tracer.startSpan('get_user');
-  span.setAttribute('user.id', req.params.id);
-  
-  const user = db.getUser(req.params.id);
-  span.end();
-  res.json(user);
-});
-```
-
-**SDK configuration decides where data goes:**
-
-```javascript
-// instrumentation.js - SDK configuration (you change this file to switch backends)
-const { NodeSDK } = require('@opentelemetry/sdk-node');
-const { OTLPTraceExporter } = require('@opentelemetry/exporter-trace-otlp-http');
-
-const sdk = new NodeSDK({
-  serviceName: 'user-service',
-  traceExporter: new OTLPTraceExporter({
-    url: process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'http://localhost:4318/v1/traces',
-  }),
-});
-
-sdk.start();
-
-// To switch backends? Just change the exporter URL above.
-// Our application code in app.js doesn't change at all.
-```
-
-**Switch backends?** Change the exporter configuration:
-
-```javascript
-// instrumentation.js - now sending to Dash0
-const sdk = new NodeSDK({
-  serviceName: 'user-service',
-  traceExporter: new OTLPTraceExporter({
-    url: process.env.DASH0_ENDPOINT,
-    headers: { 'Authorization': `Bearer ${process.env.DASH0_AUTH_TOKEN}` },
-  }),
-});
-
-sdk.start();
-```
-
-**Our application code didn't change.** That's the power of separation.
-
 ## The API: what we write in our code
 
 **Responsibilities:**
@@ -129,23 +75,24 @@ sdk.start();
 - **Vendor-neutral:** No backend logic
 - **Lightweight:** Just interfaces, no heavy implementation
 
-**Example API usage:**
+**Example**
 
 ```javascript
+// app.js
 const { trace } = require('@opentelemetry/api');
 
-// Get a tracer (this is the API)
-const tracer = trace.getTracer('service-name');
-
-// Create a span (API method)
-const span = tracer.startSpan('operation');
-
-// Add attributes (API method)
-span.setAttribute('key', 'value');
-
-// End the span (API method)
-span.end();
+app.get('/users/:id', (req, res) => {
+  const tracer = trace.getTracer('user-service'); // Get a tracer (this is the API)
+  const span = tracer.startSpan('get_user'); // Create a span (API method)
+  span.setAttribute('user.id', req.params.id); // Add attributes (API method)
+  
+  const user = db.getUser(req.params.id);
+  span.end(); // End the span (API method)
+  res.json(user);
+});
 ```
+
+Remember from Day 6: Auto-instrumentation libraries call these same API methods. We're using the same API that Express instrumentation and PostgreSQL instrumentation use.
 
 ## The SDK: what we configure once
 
@@ -167,21 +114,22 @@ span.end();
 **Example SDK configuration:**
 
 ```javascript
+// instrumentation.js - we just have to change this file to switch backends
 const { NodeSDK } = require('@opentelemetry/sdk-node');
 const { Resource } = require('@opentelemetry/resources');
 const { SemanticResourceAttributes } = require('@opentelemetry/semantic-conventions');
 const { OTLPTraceExporter } = require('@opentelemetry/exporter-trace-otlp-http');
-const { BatchSpanProcessor, TraceIdRatioBasedSampler } = require('@opentelemetry/sdk-trace-base');
+const { getNodeAutoInstrumentations } = require('@opentelemetry/auto-instrumentations-node');
 
 const sdk = new NodeSDK({
   resource: new Resource({
-    [SemanticResourceAttributes.SERVICE_NAME]: 'payment-service',
+    [SemanticResourceAttributes.SERVICE_NAME]: 'user-service',
     [SemanticResourceAttributes.SERVICE_VERSION]: '1.0.0',
   }),
-  spanProcessor: new BatchSpanProcessor(
-    new OTLPTraceExporter({ url: 'http://localhost:4318/v1/traces' })
-  ),
-  sampler: new TraceIdRatioBasedSampler(0.1),  // 10% sampling
+  traceExporter: new OTLPTraceExporter({
+    url: process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'http://localhost:4318/v1/traces',
+  }),
+  instrumentations: [getNodeAutoInstrumentations()],
 });
 
 sdk.start();
@@ -245,26 +193,33 @@ Let's see it work end-to-end.
 
 **Install:**
 ```bash
-npm install @opentelemetry/api \
-            @opentelemetry/sdk-node \
-            @opentelemetry/sdk-trace-base \
-            @opentelemetry/auto-instrumentations-node \
-            express
+npm install express \
+  @opentelemetry/api \
+  @opentelemetry/sdk-node \
+  @opentelemetry/resources \
+  @opentelemetry/semantic-conventions \
+  @opentelemetry/sdk-trace-base \
+  @opentelemetry/auto-instrumentations-node
 ```
 
 **Create instrumentation.js:**
 ```javascript
 const { NodeSDK } = require('@opentelemetry/sdk-node');
 const { ConsoleSpanExporter } = require('@opentelemetry/sdk-trace-base');
+const { Resource } = require('@opentelemetry/resources');
+const { SemanticResourceAttributes } = require('@opentelemetry/semantic-conventions');
 const { getNodeAutoInstrumentations } = require('@opentelemetry/auto-instrumentations-node');
 
 const sdk = new NodeSDK({
+  resource: new Resource({
+    [SemanticResourceAttributes.SERVICE_NAME]: 'demo-service',
+  }),
   traceExporter: new ConsoleSpanExporter(),
   instrumentations: [getNodeAutoInstrumentations()],
 });
 
 sdk.start();
-console.log('OpenTelemetry SDK initialized');
+console.log('🚀 OpenTelemetry SDK initialized');
 ```
 
 **Create app.js:**
