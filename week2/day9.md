@@ -295,7 +295,7 @@ app.listen(PORT, () => {
 
 ## Step 4: Start Jaeger (to view traces)
 
-We need a backend to receive and visualize traces. Let's use Jaeger. You should have Docker Desktop installed and running.
+We need a backend to receive and visualize traces. Let's use Jaeger. For this we need Docker Desktop installed and running.
 
 ```bash
 docker run -d --name jaeger \
@@ -308,15 +308,15 @@ docker run -d --name jaeger \
 
 ---
 
-## Step 5: Run your application
+## Step 5: Run our application
 
-Start your app with OpenTelemetry enabled:
+Start our app with OpenTelemetry enabled:
 
 ```bash
 node --require ./instrumentation.js app.js
 ```
 
-You should see:
+We should see:
 ```
 OpenTelemetry initialized
 Order service listening on port 3000
@@ -356,38 +356,23 @@ curl -X POST http://localhost:3000/orders \
 
 ---
 
-## Step 7: View your trace in Jaeger
+## Step 7: View our trace in Jaeger
 
 1. Open http://localhost:16686
 2. Select **"order-service"** from the Service dropdown
 3. Click **"Find Traces"**
 4. Click on the trace
 
-**You should see:**
+**We should see:**
 
-```
-POST /orders (1000ms) [Auto-instrumented by Express]
-└─ process_order (1000ms) [Your manual span]
-   ├─ validate_order (50ms)
-   │  └─ Event: validation_passed
-   ├─ check_inventory (200ms)
-   │  └─ inventory.all_available = true
-   ├─ calculate_shipping (100ms)
-   │  └─ shipping.cost = 12.99
-   ├─ process_payment (500ms)
-   │  ├─ Event: payment_authorization_started
-   │  ├─ Event: payment_authorization_completed
-   │  └─ payment.authorization_id = "auth_xyz"
-   └─ save_order (150ms)
-      └─ order.created_id = "ord_abc123"
-```
+<img width="1907" height="532" alt="image" src="https://github.com/user-attachments/assets/9f1e4823-c4c1-4e3f-9bfb-e9664c55d5b0" />
 
 ---
 ## What just happened?
 
-Let's break down the code you wrote:
+Let's break down the code we wrote:
 
-### 1. Auto-instrumentation (you didn't write this)
+### 1. Auto-instrumentation (we didn't write this)
 
 Express auto-instrumentation created the root span automatically:
 ```javascript
@@ -398,9 +383,9 @@ POST /orders
   http.status_code = 201
 ```
 
-### 2. Your manual instrumentation (you wrote this)
+### 2. Our manual instrumentation (we wrote this)
 
-You wrapped your business logic in spans:
+We wrapped our business logic in spans:
 
 ```javascript
 tracer.startActiveSpan('process_order', async (orderSpan) => {
@@ -413,7 +398,7 @@ tracer.startActiveSpan('process_order', async (orderSpan) => {
 });
 ```
 
-**Key API methods you used:**
+**Key API methods we used:**
 - `trace.getTracer()` → Get a tracer (Day 6 concept: who creates spans)
 - `tracer.startActiveSpan()` → Create a span (Day 4 concept: what's in a span)
 - `span.setAttribute()` → Add attributes (Day 5 concept: semantic conventions)
@@ -449,19 +434,14 @@ curl -X POST http://localhost:3000/orders \
 **Now check Jaeger:**
 
 The trace will show:
-```
-POST /orders [ERROR] ❌
-└─ process_order [ERROR] ❌
-   └─ validate_order [ERROR] ❌
-      └─ Exception: Error: Order must contain items
-         Stack trace: ...
-```
+
+<img width="1920" height="429" alt="image" src="https://github.com/user-attachments/assets/24cc5e6a-1ce4-4cdc-b336-90e4b3d36b16" />
 
 The error was captured in the span and is now searchable in Jaeger!
 
 ---
 
-## Key patterns you learned
+## Key patterns we learned
 
 ### Pattern 1: Wrapping business logic in spans
 
@@ -523,33 +503,141 @@ Add these attributes to the `process_order` span:
 - `order.currency`
 - `order.payment_method`
 
-### Exercise 2: Add a new span
+<details>
+<summary>Click to see the solution</summary>
 
-Add manual instrumentation for a "send confirmation email" step:
+**Where to add:** In the `process_order` span, right after the existing attributes.
 
 ```javascript
-await tracer.startActiveSpan('send_confirmation_email', async (span) => {
-  span.setAttribute('email.recipient', orderData.email);
+return tracer.startActiveSpan('process_order', async (orderSpan) => {
+  const orderData = req.body;
   
-  // Simulate sending email
-  await new Promise(resolve => setTimeout(resolve, 300));
+  // Existing attributes
+  orderSpan.setAttribute('order.item_count', orderData.items?.length || 0);
+  orderSpan.setAttribute('order.user_id', orderData.userId);
   
-  span.addEvent('email_sent');
-  span.end();
-});
+  // ✅ Add these new attributes
+  orderSpan.setAttribute('order.total', orderData.total || 0);
+  orderSpan.setAttribute('order.currency', 'USD');
+  orderSpan.setAttribute('order.payment_method', orderData.paymentMethod || 'credit_card');
+  
+  try {
+    // ... rest of the code
 ```
+
+**Test it:**
+```bash
+curl -X POST http://localhost:3000/orders \
+  -H "Content-Type: application/json" \
+  -d '{
+    "userId": "user_123",
+    "items": [{"sku": "WIDGET-1", "quantity": 2}],
+    "total": 99.99,
+    "paymentMethod": "credit_card"
+  }'
+```
+
+**In Jaeger, you'll now see:**
+- `order.total = 99.99`
+- `order.currency = "USD"`
+- `order.payment_method = "credit_card"`
+
+</details>
+
+
+### Exercise 2: Add a new span
+
+Add manual instrumentation for a "send confirmation email" step. Don't worry if this is still hard.
+
+<details>
+<summary>Click to see the solution</summary>
+
+**Where to add:** After the `Step 5: save_order` span, before the success response.
+
+```javascript
+// Step 6: Send confirmation email (NEW)
+await tracer.startActiveSpan('send_confirmation_email', async (span) => {
+  span.setAttribute('email.recipient', orderData.email || 'user@example.com');
+  span.setAttribute('email.order_id', orderId);
+  
+  try {
+    // Simulate sending email
+    await new Promise(resolve => setTimeout(resolve, 300));
+    
+    span.addEvent('email_sent', {
+      'email.template': 'order_confirmation',
+      'email.status': 'delivered'
+    });
+    
+    span.setStatus({ code: SpanStatusCode.OK });
+  } catch (error) {
+    span.recordException(error);
+    span.setStatus({ code: SpanStatusCode.ERROR });
+    throw error;
+  } finally {
+    span.end();
+  }
+});
+
+// Success!
+orderSpan.setAttribute('order.final_id', orderId);
+orderSpan.setStatus({ code: SpanStatusCode.OK });
+```
+
+**Test it:**
+```bash
+curl -X POST http://localhost:3000/orders \
+  -H "Content-Type: application/json" \
+  -d '{
+    "userId": "user_123",
+    "email": "customer@example.com",
+    "items": [{"sku": "WIDGET-1", "quantity": 1}],
+    "total": 49.99
+  }'
+```
+
+**In Jaeger, you'll now see a new span:**
+```
+POST /orders
+└─ process_order
+   ├─ validate_order
+   ├─ check_inventory
+   ├─ calculate_shipping
+   ├─ process_payment
+   ├─ save_order
+   └─ send_confirmation_email (300ms) ← NEW
+      ├─ email.recipient = "customer@example.com"
+      ├─ email.order_id = "ord_abc123"
+      └─ Event: email_sent
+```
+
+</details>
 
 ### Exercise 3: Simulate a payment failure
 
-Modify `processPayment()` to randomly fail:
+Modify `processPayment()` to randomly fail and see how errors appear in traces.
+
+<details>
+<summary>Click to see the solution</summary>
+
+**Where to modify:** Find the `processPayment()` helper function at the top of `app.js`.
+
+**Replace it with:**
 
 ```javascript
 async function processPayment(amount, method) {
+  // Simulate payment processing time
   await new Promise(resolve => setTimeout(resolve, 500));
   
-  // 30% chance of failure
+  // ✅ 30% chance of failure
   if (Math.random() < 0.3) {
-    throw new Error('Payment declined: insufficient funds');
+    const errors = [
+      'Payment declined: insufficient funds',
+      'Payment declined: card expired',
+      'Payment declined: invalid card number'
+    ];
+    const randomError = errors[Math.floor(Math.random() * errors.length)];
+    throw new Error(randomError);
   }
   
   return {
@@ -559,42 +647,68 @@ async function processPayment(amount, method) {
 }
 ```
 
-Send multiple requests and see how failed traces look in Jaeger.
+**Test it by sending multiple requests:**
 
----
-
-## How this connects to auto-instrumentation
-
-Remember from Day 6: auto-instrumentation and manual instrumentation both use the same API.
-
-**What auto-instrumentation does (Express library):**
-```javascript
-// This happens automatically inside the Express library
-tracer.startActiveSpan(`${req.method} ${req.route}`, (span) => {
-  span.setAttribute('http.method', req.method);
-  span.setAttribute('http.route', req.route);
-  // ... your route handler runs ...
-  span.end();
-});
+```bash
+# Send 10 requests in a loop
+for i in {1..10}; do
+  curl -X POST http://localhost:3000/orders \
+    -H "Content-Type: application/json" \
+    -d '{
+      "userId": "user_123",
+      "items": [{"sku": "WIDGET-1", "quantity": 1}],
+      "total": 49.99,
+      "paymentMethod": "credit_card"
+    }'
+  echo ""  # New line between responses
+done
 ```
 
-**What you write manually:**
-```javascript
-// You write this in your application code
-tracer.startActiveSpan('process_order', (span) => {
-  span.setAttribute('order.id', orderId);
-  // ... your business logic ...
-  span.end();
-});
+**What you'll see:**
+
+**Successful traces (70%):**
+```
+POST /orders [OK] ✅
+└─ process_order [OK]
+   └─ process_payment [OK]
+      └─ payment.authorization_id = "auth_xyz"
 ```
 
-**Same API. Different operations.** Auto-instrumentation = infrastructure spans (HTTP, database). Manual instrumentation = business logic spans (order processing, payments). Both appear in the same trace.
+**Failed traces (30%):**
+```
+POST /orders [ERROR] ❌
+└─ process_order [ERROR]
+   └─ process_payment [ERROR]
+      └─ Exception: Error: Payment declined: insufficient funds
+         Stack trace:
+           at processPayment (app.js:45:11)
+           ...
+```
+
+**In Jaeger:**
+1. Failed traces will appear in red
+2. Click on a failed trace
+3. You'll see the `process_payment` span marked as ERROR
+4. The exception details (message and stack trace) will be visible
+5. All attributes leading up to the failure are preserved
+
+**Bonus: Query for only failed payments**
+
+In Jaeger, you can search for:
+- Service: `order-service`
+- Operation: `process_payment`
+- Tags: `error=true`
+
+This shows you all failed payment operations across all traces!
+
+</details>
+
 
 ---
 
 ## Best practices (from today's code)
 
-### ✅ Do:
+### Do:
 - Use `startActiveSpan` (context manager pattern)
 - Always call `span.end()` (or let the callback do it)
 - Record exceptions with `span.recordException(error)`
@@ -602,7 +716,7 @@ tracer.startActiveSpan('process_order', (span) => {
 - Add meaningful attributes (`order.id`, `payment.amount`)
 - Re-throw errors after recording them (so your app handles them normally)
 
-### ❌ Don't:
+### Don't:
 - Forget to call `span.end()`
 - Swallow errors without recording them
 - Use high-cardinality attributes (like timestamps or UUIDs) as span names
@@ -615,10 +729,10 @@ tracer.startActiveSpan('process_order', (span) => {
 ### "I don't see traces in Jaeger"
 
 **Checklist:**
-1. ✅ Is Jaeger running? Check http://localhost:16686
-2. ✅ Did you start your app with `--require ./instrumentation.js`?
-3. ✅ Are you calling `span.end()`?
-4. ✅ Check the console for errors
+1. Is Jaeger running? Check http://localhost:16686
+2. Did you start your app with `--require ./instrumentation.js`?
+3. Are you calling `span.end()`?
+4. Check the console for errors
 
 ### "My nested spans aren't showing up as children"
 
