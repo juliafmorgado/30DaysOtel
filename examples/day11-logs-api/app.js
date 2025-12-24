@@ -103,7 +103,7 @@ app.post("/orders", async (req, res) => {
     const orderSubtotal = orderData.total || 100;
 
     orderSpan.setAttribute("order.item_count", orderData.items?.length || 0);
-    orderSpan.setAttribute("order.user_id", orderData.userId);
+    orderSpan.setAttribute("user.id", orderData.userId);
     orderSpan.setAttribute("order.subtotal", orderSubtotal);
 
     // STRUCTURED LOG: Order started (NEW for Day 11)
@@ -111,7 +111,7 @@ app.post("/orders", async (req, res) => {
       severityText: "INFO",
       body: "Order processing started",
       attributes: {
-        "order.user_id": orderData.userId,
+        "user.id": orderData.userId,
         "order.item_count": orderData.items?.length || 0,
         "order.subtotal": orderSubtotal,
         "order.payment_method": paymentMethod,
@@ -201,7 +201,7 @@ app.post("/orders", async (req, res) => {
               "payment.method": paymentMethod,
               "payment.amount": totalAmount,
               "error.message": error.message,
-              "order.user_id": orderData.userId,
+              "user.id": orderData.userId,
             },
           });
 
@@ -240,7 +240,7 @@ app.post("/orders", async (req, res) => {
         body: "Order processing completed successfully",
         attributes: {
           "order.id": orderId,
-          "order.user_id": orderData.userId,
+          "user.id": orderData.userId,
           "order.total": totalAmount,
           "order.duration_ms": durationMs,
           "payment.method": paymentMethod,
@@ -267,7 +267,7 @@ app.post("/orders", async (req, res) => {
         severityText: "ERROR",
         body: "Order processing failed",
         attributes: {
-          "order.user_id": orderData.userId,
+          "user.id": orderData.userId,
           "order.duration_ms": durationMs,
           "payment.method": paymentMethod,
           "error.message": error.message,

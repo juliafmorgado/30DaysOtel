@@ -90,7 +90,7 @@ logger.emit({
   severityText: "INFO",
   body: "Order processing started",
   attributes: {
-    "order.user_id": "user_123",
+    "user.id": "user_123",
     "order.item_count": 2,
     "order.subtotal": 99.99
   }

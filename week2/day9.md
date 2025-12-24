@@ -164,7 +164,7 @@ app.post('/orders', async (req, res) => {
     
     // Add business attributes to the root span
     orderSpan.setAttribute('order.item_count', orderData.items?.length || 0);
-    orderSpan.setAttribute('order.user_id', orderData.userId);
+    orderSpan.setAttribute('user.id', orderData.userId);
     
     try {
       // Step 1: Validate
@@ -397,7 +397,7 @@ We wrapped our business logic in spans:
 ```javascript
 tracer.startActiveSpan('process_order', async (orderSpan) => {
   orderSpan.setAttribute('order.item_count', 2);
-  orderSpan.setAttribute('order.user_id', 'user_123');
+  orderSpan.setAttribute('user.id', 'user_123');
   
   // ... more business logic ...
   
@@ -521,7 +521,7 @@ return tracer.startActiveSpan('process_order', async (orderSpan) => {
   
   // Existing attributes
   orderSpan.setAttribute('order.item_count', orderData.items?.length || 0);
-  orderSpan.setAttribute('order.user_id', orderData.userId);
+  orderSpan.setAttribute('user.id', orderData.userId);
   
   // ✅ Add these new attributes
   orderSpan.setAttribute('order.total', orderData.total || 0);

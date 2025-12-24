@@ -102,7 +102,7 @@ app.post("/orders", async (req, res) => {
     const orderSubtotal = orderData.total || 100;
 
     orderSpan.setAttribute("order.item_count", orderData.items?.length || 0);
-    orderSpan.setAttribute("order.user_id", orderData.userId);
+    orderSpan.setAttribute("user.id", orderData.userId);
     orderSpan.setAttribute("order.subtotal", orderSubtotal);
 
     try {

@@ -65,7 +65,7 @@ app.post('/orders', async (req, res) => {
     
     // Add business attributes to the root span
     orderSpan.setAttribute('order.item_count', orderData.items?.length || 0);
-    orderSpan.setAttribute('order.user_id', orderData.userId);
+    orderSpan.setAttribute('user.id', orderData.userId);
     
     try {
       // Step 1: Validate
