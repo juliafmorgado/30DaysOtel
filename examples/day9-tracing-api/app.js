@@ -43,7 +43,7 @@ async function processPayment(amount, method) {
   await new Promise(resolve => setTimeout(resolve, 500));
   
   return {
-    authId: 'auth_' + Math.random().toString(36).substr(2, 9),
+    authId: 'auth_' + Math.random().toString(36).substring(2, 11),
     status: 'approved'
   };
 }
@@ -52,7 +52,7 @@ async function saveOrder(orderData) {
   // Simulate database save
   await new Promise(resolve => setTimeout(resolve, 150));
   
-  return 'ord_' + Math.random().toString(36).substr(2, 9);
+  return 'ord_' + Math.random().toString(36).substring(2, 11);
 }
 
 // Our instrumented endpoint

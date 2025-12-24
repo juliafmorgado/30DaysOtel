@@ -64,17 +64,16 @@ Create `instrumentation.js`:
 
 ```javascript
 // instrumentation.js
-// instrumentation.js
 const { NodeSDK } = require("@opentelemetry/sdk-node");
 const { getNodeAutoInstrumentations } = require("@opentelemetry/auto-instrumentations-node");
 const { OTLPTraceExporter } = require("@opentelemetry/exporter-trace-otlp-http");
 const { Resource } = require("@opentelemetry/resources");
-const { SemanticResourceAttributes } = require("@opentelemetry/semantic-conventions");
+const { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } = require("@opentelemetry/semantic-conventions");
 
 const sdk = new NodeSDK({
   resource: new Resource({
-    [SemanticResourceAttributes.SERVICE_NAME]: "order-service",
-    [SemanticResourceAttributes.SERVICE_VERSION]: "1.0.0",
+    [ATTR_SERVICE_NAME]: "order-service",
+    [ATTR_SERVICE_VERSION]: "1.0.0",
   }),
   traceExporter: new OTLPTraceExporter({
     url: "http://localhost:4318/v1/traces",
@@ -143,7 +142,7 @@ async function processPayment(amount, method) {
   await new Promise(resolve => setTimeout(resolve, 500));
   
   return {
-    authId: 'auth_' + Math.random().toString(36).substr(2, 9),
+    authId: 'auth_' + Math.random().toString(36).substring(2, 11),
     status: 'approved'
   };
 }
@@ -152,7 +151,7 @@ async function saveOrder(orderData) {
   // Simulate database save
   await new Promise(resolve => setTimeout(resolve, 150));
   
-  return 'ord_' + Math.random().toString(36).substr(2, 9);
+  return 'ord_' + Math.random().toString(36).substring(2, 11);
 }
 
 // Our instrumented endpoint
@@ -649,7 +648,7 @@ async function processPayment(amount, method) {
   }
   
   return {
-    authId: 'auth_' + Math.random().toString(36).substr(2, 9),
+    authId: 'auth_' + Math.random().toString(36).substring(2, 11),
     status: 'approved'
   };
 }

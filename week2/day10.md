@@ -112,8 +112,8 @@ npm install express \
 >- Jaeger is a tracing backend
 >- Jaeger does not store application metrics
 >- Metrics should be sent to:
->  - Prometheus (most common)
->  - or an OTEL-native vendor backend (Dash0 etc.)
+>  - **Dash0** (native OpenTelemetry backend)
+>  - **Prometheus** (traditional open-source option)
 >  - typically via the OpenTelemetry Collector
 > For learning purposes, we’ll still configure metric export correctly. Later days will show proper visualization.
 
@@ -125,34 +125,49 @@ const { NodeSDK } = require("@opentelemetry/sdk-node");
 const { getNodeAutoInstrumentations } = require("@opentelemetry/auto-instrumentations-node");
 const { OTLPTraceExporter } = require("@opentelemetry/exporter-trace-otlp-http");
 const { OTLPMetricExporter } = require("@opentelemetry/exporter-metrics-otlp-http");
-const { PeriodicExportingMetricReader } = require("@opentelemetry/sdk-metrics");
+const { ConsoleMetricExporter, PeriodicExportingMetricReader, MeterProvider } = require("@opentelemetry/sdk-metrics");
 const { Resource } = require("@opentelemetry/resources");
-const { SemanticResourceAttributes } = require("@opentelemetry/semantic-conventions");
+const { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } = require("@opentelemetry/semantic-conventions");
+const { metrics } = require("@opentelemetry/api");
+
+const resource = new Resource({
+  [ATTR_SERVICE_NAME]: "order-service",
+  [ATTR_SERVICE_VERSION]: "1.0.0",
+});
+
+// Create meter provider with multiple readers
+const meterProvider = new MeterProvider({
+  resource,
+  readers: [
+    new PeriodicExportingMetricReader({
+      exporter: new OTLPMetricExporter({
+        url: "http://localhost:4318/v1/metrics",
+      }),
+      exportIntervalMillis: 5000,  // Export to OTLP every 5 seconds
+    }),
+    new PeriodicExportingMetricReader({
+      exporter: new ConsoleMetricExporter(),
+      exportIntervalMillis: 10000,  // Print to console every 10 seconds
+    }),
+  ],
+});
+
+// Set the global meter provider
+metrics.setGlobalMeterProvider(meterProvider);
 
 const sdk = new NodeSDK({
-  resource: new Resource({
-    [SemanticResourceAttributes.SERVICE_NAME]: "order-service",
-    [SemanticResourceAttributes.SERVICE_VERSION]: "1.0.0",
-  }),
+  resource,
   
   // Trace exporter (from Day 9)
   traceExporter: new OTLPTraceExporter({
     url: "http://localhost:4318/v1/traces",
   }),
   
-  // Metric exporter (NEW for Day 10)
-  metricReader: new PeriodicExportingMetricReader({
-    exporter: new OTLPMetricExporter({
-      url: "http://localhost:4318/v1/metrics",
-    }),
-    exportIntervalMillis: 5000,  // Export metrics every 5 seconds
-  }),
-  
   instrumentations: [getNodeAutoInstrumentations()],
 });
 
 sdk.start();
-console.log("OpenTelemetry initialized (traces + metrics)");
+console.log("OpenTelemetry initialized (traces + metrics with console output)");
 ```
 
 ---
@@ -337,9 +352,15 @@ done
 
 Jaeger is great for traces, but it’s not a metrics dashboard.
 
-In this tutorial we export metrics over OTLP (`/v1/metrics`). In real setups we typically send metrics often through the OpenTelemetry Collector to Prometheus + Grafana, or an OTEL-native backend vendor like Dash0.
+In this tutorial we export metrics over OTLP (`/v1/metrics`). In real setups, these metrics can be sent to:
+
+- **Dash0** - Native OpenTelemetry backend with built-in dashboards and correlation
+- **Prometheus + Grafana** - Traditional open-source monitoring stack  
+- **Other OTEL-native vendors** - Any backend that supports OTLP metrics
 
 For now, the goal is: emit metrics correctly. Visualization comes later.
+
+**For production:** Consider using Dash0 or another OpenTelemetry-native backend that can receive OTLP metrics directly without additional configuration.
 
 ## What metrics did we record today?
 
