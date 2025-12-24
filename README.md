@@ -102,26 +102,18 @@ This is a **public learning project** designed to help others follow along and b
 
 ---
 
-## Tools and Technologies
-This learning journey uses:
+## Prerequisites
 
-**Languages:**
-- Node.js (primary examples)
-- Python (secondary examples)
+**To follow along, you'll need:**
+- Basic JavaScript/Node.js knowledge (examples use Express.js)
+- Docker installed (for running Jaeger and other backends)
+- Terminal/command line familiarity
+- Curiosity about observability! 🔍
 
-**OpenTelemetry:**
-- OpenTelemetry API & SDK (Node.js, Python)
-- OpenTelemetry Collector
-- Auto-instrumentation libraries
-
-**Backends:**
-- [Jaeger](https://www.jaegertracing.io/) (trace visualization)
-- [Prometheus](https://prometheus.io/) (metrics)
-- [Dash0](https://www.dash0.com/) (unified observability platform)
-
-**Utilities:**
-- [OTelBin](https://www.otelbin.io/) (Collector config validation)
-- Docker / Docker Compose (local setup)
+**Optional but helpful:**
+- Experience with distributed systems
+- Basic understanding of HTTP and APIs
+- Familiarity with monitoring concepts
 
 ---
 ## Contributing
