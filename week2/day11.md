@@ -1,6 +1,6 @@
 # Day 11 – Logs API: Structured Logging with Trace Correlation
 
-Yesterday we learned the Metrics API and added counters, histograms, and gauges to track aggregate patterns. Today we add structured logging so we can answer questions like "What exactly happened during this failed order?", "Which user had payment issues?", "What were the exact steps that led to this error?"
+For the past two days, we've learned the Tracing API ([Day 9](https://github.com/juliafmorgado/30DaysOtel/blob/main/week2/day9.md)) and Metrics API ([Day 10](https://github.com/juliafmorgado/30DaysOtel/blob/main/week2/day10.md)). Today we complete the observability trio with the **Logs API** so we can answer questions like "What exactly happened during this failed order?", "Which user had payment issues?", "What were the exact steps that led to this error?"
 
 > **Working example:** The complete code for this tutorial is available in [`examples/day11-logs-api/`](../examples/day11-logs-api/)
 >
@@ -15,8 +15,6 @@ We've already been exposed to logging concepts:
 - **[Day 3](https://github.com/juliafmorgado/30DaysOtel/blob/main/week1/day3.md):** Logs provide detailed event information, traces show request flows
 - **[Day 5](https://github.com/juliafmorgado/30DaysOtel/blob/main/week1/day5.md):** Semantic conventions apply to logs too (structured attributes)
 - **[Day 6](https://github.com/juliafmorgado/30DaysOtel/blob/main/week1/day6.md):** Auto-instrumentation creates some logs automatically
-
-Today's focus: creating our **own structured logs manually** using the Logs API.
 
 ---
 
@@ -36,8 +34,7 @@ Today's focus: creating our **own structured logs manually** using the Logs API.
 
 ### Traditional Logging (what we used to do)
 ```javascript
-console.log("Order processing started for user user_123 with 2 items totaling $99.99");
-console.error("Payment failed for user user_123: insufficient funds");
+console.log('Payment processed for user user_123 amount 149.99 USD');
 ```
 
 **Problems:**
@@ -49,31 +46,55 @@ console.error("Payment failed for user user_123: insufficient funds");
 ### Structured Logging (OpenTelemetry way)
 ```javascript
 logger.emit({
-  severityText: "INFO",
-  body: "Order processing started",
+  severityText: 'INFO',
+  body: 'Payment processed successfully',
   attributes: {
-    "user.id": "user_123",
-    "order.item_count": 2,
-    "order.total": 99.99
-  }
-});
-
-logger.emit({
-  severityText: "ERROR", 
-  body: "Payment processing failed",
-  attributes: {
-    "user.id": "user_123",
-    "payment.method": "credit_card",
-    "error.message": "insufficient funds"
+    'user.id': 'user_123',
+    'payment.amount': 149.99,
+    'payment.currency': 'USD'
   }
 });
 ```
 
-**Benefits:**
-- Searchable by any attribute
-- Automatic trace correlation
-- Machine-readable
-- Consistent structure
+**These logs are machine-parseable, queryable, filterable and they automatically includes trace_id and span_id.**
+
+---
+
+## Log severity levels
+
+| Level | Number | When to use | Example |
+|-------|--------|-------------|-------------|
+| `DEBUG` | 5 | Detailed debugging information for Devs |
+| `INFO` | 9 | General informational messages | "Payment processed successfully" |
+| `WARN` | 13 | Warning messages (potential issues) | "Payment processing slow (>2s)" |
+| `ERROR` | 17 | Error messages (operation failed) | "Payment failed: Card declined"|
+
+---
+
+## How log correlation works
+
+When you emit a log inside an active span, OpenTelemetry automatically adds `trace_id` and `span_id`.
+
+```javascript
+tracer.startActiveSpan("process_payment", span => {
+  logger.emit({ body: "Payment started" });
+});
+```
+**Now we can:**
+- Click a failed trace → see all logs for that request
+- See an error log → jump to the exact trace
+- Understand what happened, where, and when
+
+> [!NOTE]
+> **Mental model**
+>
+> Metrics → WHEN (failures spiked at 10:30 AM)
+> 
+> Logs → WHAT (payment declined, insufficient funds)
+> 
+> Traces → WHERE (in payment span) and WHO (user_42)
+> 
+> All three together = **observability.**
 
 ---
 
@@ -91,19 +112,9 @@ All logs will automatically include trace and span IDs for correlation.
 
 ---
 
-## Step 1: Set up the project
+## Step 1: Install log dependencies
 
-If you finished Day 10, reuse that project.
-
-If not:
-
-```bash
-mkdir otel-logs
-cd otel-logs
-npm init -y
-```
-
-**Install dependencies:**
+Building on Day 10's project:
 
 ```bash
 npm install express \
@@ -126,10 +137,7 @@ npm install express \
 >Important architecture note:
 >- Jaeger is primarily a tracing backend
 >- Jaeger does not store application logs in a searchable way
->- Logs should be sent to:
->  - **Dash0** (native OpenTelemetry backend)
->  - **Elasticsearch** (traditional log storage)
->  - **Other OTEL-native backends** that support OTLP
+>- Logs should be sent to **Dash0** (native OpenTelemetry backend) or another OTEL-native backends** that support OTLP
 >  - typically via the OpenTelemetry Collector in production
 > For learning purposes, we'll configure log export correctly. The OTLP export works with any compatible backend.
 
@@ -380,20 +388,6 @@ done
 
 ---
 
-## Step 8: Where do logs go?
-
-In this tutorial we export logs over OTLP (`/v1/logs`). In real setups, these logs can be sent to:
-
-- **Dash0** - Native OpenTelemetry backend with built-in log search and correlation
-- **Elasticsearch** - Traditional log storage and search
-- **Other OTEL-native backends** - Any backend that supports OTLP logs
-
-For now, the goal is: emit structured logs correctly. Storage and search comes later.
-
-**For production:** Consider using Dash0 or another OpenTelemetry-native backend that can receive OTLP logs directly and provide automatic trace correlation.
-
----
-
 ## What structured logs did we create today?
 
 These logs match our `app.js`:
@@ -435,6 +429,27 @@ These logs match our `app.js`:
     }
   }
   ```
+---
+
+## Correlating logs with traces
+
+### Workflow: Trace → Logs
+
+1. Open Jaeger: http://localhost:16686
+2. Find a failed trace (red)
+3. Copy the `trace_id`
+4. Search your logs for that `trace_id`
+
+**Result:** You see all logs from that specific request.
+
+### Workflow: Logs → Trace
+
+1. See an ERROR log
+2. Copy the `traceId`
+3. Search Jaeger for that trace
+4. View the complete request flow
+
+**Result:** You see where in the flow the error occurred.
 
 ---
 
@@ -473,12 +488,12 @@ Query logs: trace_id="abc123"
 
 ### Pattern 1: Structured attributes instead of string interpolation
 
-❌ **Don't do this:**
+**Don't do this:**
 ```javascript
 console.log(`Order ${orderId} for user ${userId} failed: ${error.message}`);
 ```
 
-✅ **Do this:**
+**Do this:**
 ```javascript
 logger.emit({
   severityText: "ERROR",
@@ -532,12 +547,12 @@ tracer.startActiveSpan('process_payment', async (span) => {
 
 ## What I'm taking into Day 12
 
-Today we learned the **Logs API**—the methods to create structured, correlated logs:
+Today we learned the **Logs API** which are the methods to create structured, correlated logs, AND the final piece of observability.
 
 **Key skills:**
 - Creating structured logs with `logger.emit()`
-- Using appropriate severity levels (INFO, WARN, ERROR, DEBUG)
-- Adding structured attributes instead of string interpolation
+- Using severity levels (INFO, WARN, ERROR, DEBUG)
+- Adding structured attributes for context
 - Automatic trace correlation (trace_id and span_id)
 - Using logs, traces, and metrics together for complete observability
 
