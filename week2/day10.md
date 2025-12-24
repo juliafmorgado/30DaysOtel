@@ -43,7 +43,7 @@ Counts events/things that accumulate: requests received, errors, orders processe
 
 **In our app:**
 - `orders.processed.total` → Total orders processed (success + failed)
-- `payment.failed.total` → Total payment failures
+- `payments.failed.total` → Total payment failures
 
 ### 2. **Histogram** (records measurements)
 
@@ -57,7 +57,7 @@ Use it to record values you want percentiles for. The backend can then calculate
 
 Represents how many things are happening right now. Used for active requests, jobs in progress and items being processsed.
 
-**In our app::**
+**In our app:**
 - `orders.active` → Current number of active orders (increment at request start, decrement in `finally`)
 
 >[!IMPORTANT]
@@ -75,7 +75,7 @@ We'll add metrics to the order API from Day 9:
 2. **Counter:** Total payment failures
 3. **Histogram:** Order processing duration
 4. **Histogram:** Order total amounts
-5. **Gauge:** Active orders being processed
+5. **UpDownCounter:** Active orders being processed
 
 ---
 
@@ -184,7 +184,7 @@ const meter = metrics.getMeter('order-service', '1.0.0');
 
 ## Step 4: Create metrics (create once, reuse everywhere)
 
-Metrics are like instruments on a car dashboard. We don’t rebuild the speedometer for every trip, we just **update it** while you drive. Create metrics once at startup, not inside the request handler.
+Metrics are like instruments on a car dashboard. We create them once when the app starts, then update them while the app runs.. Create metrics once at startup, not inside the request handler.
 
 Here are the metrics we’ll use today:
 
@@ -337,7 +337,7 @@ done
 
 Jaeger is great for traces, but it’s not a metrics dashboard.
 
-In this tutorial we export metrics over OTLP (`/v1/metric`). In real setups we typically send metrics often through the OpenTelemetry Collector to Prometheus + Grafana, or an OTEL-native backend vendor like Dash0.
+In this tutorial we export metrics over OTLP (`/v1/metrics`). In real setups we typically send metrics often through the OpenTelemetry Collector to Prometheus + Grafana, or an OTEL-native backend vendor like Dash0.
 
 For now, the goal is: emit metrics correctly. Visualization comes later.
 
