@@ -4,9 +4,9 @@ An Express API demonstrating the **Metrics API** (counters, histograms, UpDownCo
 
 ## What's different from Day 9?
 
-- ✅ **Added metrics** (counters, histograms, UpDownCounters)
-- ✅ **Optional Prometheus + Grafana** (for real dashboards)
-- ✅ **Traces still work** (sent to Jaeger as in Day 9)
+- **Added metrics** (counters, histograms, UpDownCounters)
+- **Optional Prometheus + Grafana** (for real dashboards)
+- **Traces still work** (sent to Jaeger as in Day 9)
 
 ## Quick Start
 
@@ -60,7 +60,7 @@ docker-compose up -d
 This will start:
 - **Jaeger** (traces): http://localhost:16686  
 - **Prometheus** (metrics): http://localhost:9090
-- **Grafana** (dashboards): http://localhost:3001 (admin/admin)
+- **Grafana OSS** (dashboards): http://localhost:3001 (admin/admin)
 
 **For production:** Consider using **Dash0** or another OpenTelemetry-native backend that can receive OTLP metrics directly without additional setup. This tutorial's OTLP export will work with any OTEL-compatible backend.
 
