@@ -15,7 +15,7 @@ This is a **public learning project** designed to help others follow along and b
 | Week   | Theme | Focus | What We'll Build |
 |--------|-------|-------|-------------------|
 | **1** | Observability Fundamentals | Understanding traces, metrics, logs; semantic conventions; auto vs manual instrumentation | Mental models + reading real traces |
-| **2** | OpenTelemetry APIs & SDK | Hands-on with Tracing API, Metrics API, Logs API, context propagation, SDK pipelines | Instrumented Node.js/Python apps |
+| **2** | OpenTelemetry APIs & SDK | Hands-on with Tracing API, Metrics API, Logs API, context propagation, SDK pipelines | Instrumented Node.js apps |
 | **3** | OpenTelemetry Collector | Receivers, processors, exporters, transformations (OTTL), deployment models, scaling | Full collector pipeline + multi-backend routing |
 | **4** | Production Patterns & Final Project | Debugging traces, schema management, backpressure handling, architecture design | Complete observable system (app + collector + backends) |
 
