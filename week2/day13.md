@@ -20,6 +20,22 @@ Today's focus is understanding **what these components do** and **seeing them in
 
 ---
 
+## Study Section (15 minutes)
+
+Before we dive into coding, let's understand the official concepts:
+
+**Read this:** [OpenTelemetry SDK Configuration](https://opentelemetry.io/docs/concepts/sdk-configuration/)
+
+**Focus on these sections:**
+- **Sampler types** - Different ways to control which spans get collected
+- **Span processors** - How spans are handled before export (simple vs batch)
+- **Exporters** - Where spans get sent (console, OTLP, etc.)
+- **Resource attributes** - Metadata about your service
+
+**Key takeaway:** The SDK pipeline gives you control over cost (sampling), performance (processing), and destination (exporting) without changing your application code.
+
+---
+
 ## What is an SDK Pipeline?
 
 Think of an SDK pipeline like a simple assembly line for your telemetry data:
@@ -48,26 +64,46 @@ Imagine your app handles 1000 requests per second:
 - **Without sampling:** 1000+ spans per second = expensive storage, slow queries
 - **With 10% sampling:** ~100 spans per second = much cheaper, still useful
 
-### The Two Basic Samplers
+### The Basic Sampler Types
 
 **1. AlwaysOnSampler (what we've been using)**
 ```javascript
 // Keep 100% of spans - good for learning and development
 // This is the default when you don't specify a sampler
+const sampler = new AlwaysOnSampler();
 ```
 
-**2. TraceIdRatioBasedSampler**
+**2. AlwaysOffSampler**
+```javascript
+// Keep 0% of spans - useful for disabling tracing
+const sampler = new AlwaysOffSampler();
+```
+
+**3. TraceIdRatioBasedSampler**
 ```javascript
 // Keep a percentage of spans - good for production
 // Example: Keep 10% of spans
 const sampler = new TraceIdRatioBasedSampler(0.1);
 ```
 
-**How ratio sampling works:**
+**4. ParentBasedSampler**
+```javascript
+// Follow parent span's sampling decision - good for distributed systems
+const sampler = new ParentBasedSampler({
+  root: new TraceIdRatioBasedSampler(0.1), // For root spans (10%)
+});
+```
+
+### Head-Based Sampling (SDK-Level Decisions)
+
+**Key concept:** Sampling decisions are made **upfront** when the trace starts, not after it completes.
+
+**How TraceIdRatioBasedSampler works:**
 - OpenTelemetry looks at the trace ID (a big random number)
 - If the number falls in the "keep" range, it keeps the whole trace
 - If not, it drops the whole trace
 - This ensures complete traces (not partial ones)
+- **Decision is made immediately** when `startActiveSpan()` is called
 
 ---
 
@@ -118,6 +154,34 @@ An exporter decides where to send your telemetry data.
 
 ---
 
+## Resource Attributes: Describing Your Service
+
+Resource attributes describe **who** is producing the telemetry - your service, version, environment, etc.
+
+### Basic Resource Attributes
+
+```javascript
+const { Resource } = require("@opentelemetry/resources");
+const { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } = require("@opentelemetry/semantic-conventions");
+
+const resource = new Resource({
+  [ATTR_SERVICE_NAME]: "my-order-service",
+  [ATTR_SERVICE_VERSION]: "1.2.0",
+  "deployment.environment": "production",
+  "service.team": "checkout",
+});
+```
+
+**Why resource attributes matter:**
+- **Service identification** - Which service created this span?
+- **Version tracking** - Which version had the bug?
+- **Environment separation** - Is this from dev, staging, or prod?
+- **Team ownership** - Who should be notified about issues?
+
+**These attributes appear on ALL spans** from your service, making them easy to filter and search.
+
+---
+
 ## What we're building today
 
 We'll create **simple examples** showing:
@@ -162,12 +226,16 @@ Create `instrumentation-console.js`:
 const { NodeSDK } = require("@opentelemetry/sdk-node");
 const { ConsoleSpanExporter } = require("@opentelemetry/sdk-trace-node");
 const { Resource } = require("@opentelemetry/resources");
-const { ATTR_SERVICE_NAME } = require("@opentelemetry/semantic-conventions");
+const { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } = require("@opentelemetry/semantic-conventions");
 const { SimpleSpanProcessor } = require("@opentelemetry/sdk-trace-node");
 
 const sdk = new NodeSDK({
+  // Resource attributes - describe your service
   resource: new Resource({
     [ATTR_SERVICE_NAME]: "sdk-basics-demo",
+    [ATTR_SERVICE_VERSION]: "1.0.0",
+    "deployment.environment": "development",
+    "service.team": "platform",
   }),
   
   // Use console exporter so we can see spans in terminal
@@ -366,7 +434,7 @@ const sdk = new NodeSDK({
 });
 
 sdk.start();
-console.log("✅ SDK initialized - spans will be batched and sent to Jaeger");
+console.log("SDK initialized - spans will be batched and sent to Jaeger");
 ```
 
 **Start Jaeger and test:**
@@ -470,5 +538,3 @@ Today we learned the **basic building blocks** of SDK pipelines:
 - Understanding the difference between simple and batch processing
 
 **Tomorrow (Day 14):** We'll **put it all together** with a hands-on project that uses everything we've learned in Week 2, plus review all the concepts before moving to the OpenTelemetry Collector in Week 3.
-
-This was just the basics - in Week 3 we'll learn about the **OpenTelemetry Collector** which gives you much more powerful processing capabilities!
