@@ -2,9 +2,9 @@
 
 Yesterday we learned how context propagation keeps traces connected as they flow through our applications. Today we'll get a **gentle introduction** to SDK pipelines - the basic components that control how your telemetry gets from your code to your observability backend.
 
-> **Working example:** The complete code for this tutorial is available in [`examples/day13-sdk-basics/`](../examples/day13-sdk-basics/)
+> **Working example:** The complete code for this tutorial is available in [`examples/day13-sdk-basics/`](../examples/day13-sdk/)
 >
-> **Note:** This builds on Days 8-12. If you haven't done those yet, start with [`examples/day8-api-vs-sdk/`](../examples/day8-api-vs-sdk/)
+> **Note:** This builds on Days 8-12. If you haven't done those yet, start with [`examples/day9-tracing-api/`](../examples/day9-tracing-api/)
 
 ---
 
