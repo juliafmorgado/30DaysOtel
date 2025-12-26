@@ -1,6 +1,6 @@
-# Day 10 – Metrics API: Measuring What Matters
+# Day 10 – Metrics API: Counting What Matters
 
-Yesterday we learned the Tracing API and created spans to follow individual requests through our system. Today we add metrics so we can answer questions like “How many orders are succeeding vs failing?”, “How long do orders take (p95)?”, “How many orders are being processed right now?”
+Yesterday we learned the Tracing API and created spans to follow individual requests through our system. Today we add **basic metrics** so we can answer simple questions like "How many orders have we processed?" and "How many orders are failing?"
 
 > **Working example:** The complete code for this tutorial is available in [`examples/day10-metrics-api/`](../examples/day10-metrics-api/)
 >
@@ -10,84 +10,74 @@ Yesterday we learned the Tracing API and created spans to follow individual requ
 
 ## What we already know from Week 1
 
-We’ve already been exposed to metrics concepts:
+We've already been exposed to metrics concepts:
 
-- **[Day 3](https://github.com/juliafmorgado/30DaysOtel/blob/main/week1/day3.md):** Metrics show aggregate patterns, traces show individual requests
-- **[Day 5](https://github.com/juliafmorgado/30DaysOtel/blob/main/week1/day5.md):** Semantic conventions apply to metrics too (`http.server.request.duration`)
+- **[Day 3](https://github.com/juliafmorgado/30DaysOtel/blob/main/week1/day3.md):** Metrics show patterns across many requests, traces show individual requests
 - **[Day 6](https://github.com/juliafmorgado/30DaysOtel/blob/main/week1/day6.md):** Auto-instrumentation creates metrics automatically
 
-Today’s focus: creating our **own metrics manually** using the Metrics API.
+Today's focus: creating our **own simple metrics** using the Metrics API.
 
 ---
 
-## Metrics vs Traces: The core difference
+## Metrics vs Traces: The simple difference
 
 | Traces | Metrics |
 |--------|---------|
-| One requests | Many requests |
-| "This order took 1200ms" | "Average order time: 450ms" |
-| High cardinality (millions) | Low cardinality (thousands) |
-| “Why did this fail?” | “How often does this fail?” |
-| Debugging | Monitoring & Alerting |
-| Spans, attributes, events | Counters, gauges, histograms |
+| Individual requests | Many requests combined |
+| "This order took 1200ms" | "We processed 50 orders today" |
+| "Why did this specific order fail?" | "How many orders are failing?" |
+| Debugging individual problems | Seeing overall patterns |
+
+**Think of it like this:**
+- **Traces** = Individual stories ("John's order failed at payment")
+- **Metrics** = Statistics ("10% of orders are failing")
 
 ---
 
-## The three metric types we’ll use today
+## The one metric type we'll learn today: Counter
 
-OpenTelemetry defines several metric instruments. For beginners, we only need three.
+For beginners, we only need to understand **counters** -> numbers that only go up.
 
-### 1. **Counter** (only goes up)
+### Counter (counts things that happen)
 
-Counts events/things that accumulate: requests received, errors, orders processed, bytes sent. Counters only increase (they reset on process restart).
+Counts events that accumulate over time: orders processed, errors that occurred, requests received.
 
-**In our app:**
-- `orders.processed.total` → Total orders processed (success + failed)
-- `payments.failed.total` → Total payment failures
+**Examples:**
+- `orders_processed_total` → How many orders we've handled (starts at 0, goes up)
+- `payment_failures_total` → How many payments failed (starts at 0, goes up)
+- `requests_received_total` → How many HTTP requests we got (starts at 0, goes up)
 
-### 2. **Histogram** (records measurements)
-
-Use it to record values you want percentiles for. The backend can then calculate average, p50 / p95 / p99, min / max that are used for request durations, order amounts, database query time...
-
-**In our app:**
-- `order.processing.duration` → Milliseconds
-- `order.total` → Distribution of order values
-
-### 3. **UpDownCounter** (goes up and down)
-
-Represents how many things are happening right now. Used for active requests, jobs in progress and items being processsed.
-
-**In our app:**
-- `orders.active` → Current number of active orders (increment at request start, decrement in `finally`)
-
->[!IMPORTANT]
->Although this looks like a “gauge” on dashboards, this is event-driven (“started” +1, “finished” -1) and OpenTelemetry models event-driven state as an `UpDownCounter`, not a Gauge.
->Gauges are for sampling system state (CPU, memory), which we’ll cover later.
+**Key rule:** Counters only increase. They reset to 0 when your app restarts.
 
 ---
 
 ## What we're building today
 
-We'll add metrics to the order API from Day 9:
+We'll add **simple counting metrics** to the order API from Day 9:
 
 **Metrics we'll track:**
-1. **Counter:** Total orders processed
-2. **Counter:** Total payment failures
-3. **Histogram:** Order processing duration
-4. **Histogram:** Order total amounts
-5. **UpDownCounter:** Active orders being processed
+1. **Counter:** Total orders processed (success + failed)
+2. **Counter:** Total successful orders  
+3. **Counter:** Total failed orders
+
+That's it! Simple counting to see patterns.
 
 ---
 
 ## Step 1: Set up the project
 
-If you finished Day 9, reuse that project.
-
-If not:
+If you finished Day 9, copy that project:
 
 ```bash
-mkdir otel-metrics
-cd otel-metrics
+cp -r day9-tracing-api day10-metrics-basics
+cd day10-metrics-basics
+```
+
+If starting fresh:
+
+```bash
+mkdir day10-metrics-basics
+cd day10-metrics-basics
 npm init -y
 ```
 
@@ -103,19 +93,10 @@ npm install express \
   @opentelemetry/exporter-trace-otlp-http \
   @opentelemetry/exporter-metrics-otlp-http
 ```
+
 ---
 
-## Step 2: Configure OpenTelemetry (traces + metrics)
-
->[!IMPORTANT]
->Important architecture note:
->- Jaeger is a tracing backend
->- Jaeger does not store application metrics
->- Metrics should be sent to:
->  - **Dash0** (native OpenTelemetry backend)
->  - **Prometheus** (traditional open-source option)
->  - typically via the OpenTelemetry Collector
-> For learning purposes, we’ll still configure metric export correctly. Later days will show proper visualization.
+## Step 2: Update instrumentation to include metrics
 
 Let's update `instrumentation.js` to export both traces AND metrics:
 
@@ -145,7 +126,7 @@ const sdk = new NodeSDK({
     exporter: new OTLPMetricExporter({
       url: "http://localhost:4318/v1/metrics",
     }),
-    exportIntervalMillis: 5000,  // Export metrics every 5 seconds
+    exportIntervalMillis: 10000,  // Export metrics every 10 seconds
   }),
   
   instrumentations: [getNodeAutoInstrumentations()],
@@ -155,18 +136,22 @@ sdk.start();
 console.log("OpenTelemetry initialized (traces + metrics)");
 ```
 
+**What's new:**
+- Added metrics export alongside traces
+- Metrics are sent every 10 seconds (not immediately like traces)
+
 ---
 
 ## Step 3: Get a Meter (like we got a Tracer on Day 9)
 
 Think of it like this:
-- Tracer = makes spans (traces)
-- Meter = makes instruments (metrics)
+- **Tracer** = creates spans (for traces)
+- **Meter** = creates counters (for metrics)
 
 ```javascript
 // app.js
 const express = require('express');
-const { trace, metrics } = require('@opentelemetry/api');
+const { trace, metrics, SpanStatusCode } = require('@opentelemetry/api');
 
 const app = express();
 app.use(express.json());
@@ -177,118 +162,219 @@ const tracer = trace.getTracer('order-service', '1.0.0');
 // Get a meter (NEW for Day 10)
 const meter = metrics.getMeter('order-service', '1.0.0');
 
-// Next we'll add metrics and define metrics using the meter
+// Next we'll create our counters
 ```
 
 ---
 
-## Step 4: Create metrics (create once, reuse everywhere)
+## Step 4: Create counters (create once, use everywhere)
 
-Metrics are like instruments on a car dashboard. We create them once when the app starts, then update them while the app runs.. Create metrics once at startup, not inside the request handler.
-
-Here are the metrics we’ll use today:
+Counters are like scoreboards. We create them once when the app starts, then update them as things happen.
 
 ```javascript
-// Counter: total orders processed (success + failed)
-const ordersProcessed = meter.createCounter("orders.processed.total", {
-  description: "Total number of orders processed",
-  unit: "1",
+// Create counters once at startup
+const ordersTotal = meter.createCounter("orders_processed_total", {
+  description: "Total number of orders processed (success + failed)",
 });
 
-// Counter: payment failures (counts events)
-const paymentFailures = meter.createCounter("payments.failed.total", {
-  description: "Total number of payment failures",
-  unit: "1",
+const ordersSuccess = meter.createCounter("orders_success_total", {
+  description: "Total number of successful orders",
 });
 
-// Histogram: order processing duration (records measurements)
-const orderDuration = meter.createHistogram("order.processing.duration", {
-  description: "Time spent processing an order",
-  unit: "ms",
+const ordersFailed = meter.createCounter("orders_failed_total", {
+  description: "Total number of failed orders",
 });
 
-// Histogram: order totals (records measurements)
-const orderTotal = meter.createHistogram("order.total", {
-  description: "Distribution of order totals",
-  unit: "1", // keep currency as an attribute instead of putting it in the unit
-});
-
-// UpDownCounter: active orders in progress (goes up and down)
-const activeOrders = meter.createUpDownCounter("orders.active", {
-  description: "Number of orders currently being processed",
-  unit: "1",
-});
-
-```
-
-**What’s happening here:**
-- `meter.createCounter()` → creates a counter (like `tracer.startSpan()` from Day 9) we can only **add** to (`add(1)`)`, `add(5)`, etc
-- `meter.createHistogram()` → lets us record values so our backend can calculate p50/p95/p99
-- `meter.createUpDownCounter()` → is perfect for “in-flight right now” numbers (increment at start, decrement at end)
-- `description` and `unit` → make dashboards readable
-
->[!NOTE]
->Beginner rule: Avoid high-cardinality attributes (no `userId`, `orderId`, timestamps).
-Good attributes look like: `status`, `method`, `currency`.
-
----
-## Step 5: Record metrics inside `/orders`
-
-This is the exact pattern used in your app.js:
-- `activeOrders.add(1)` at the start
-- record success metrics on success
-- record failure metrics on error
-- `activeOrders.add(-1)` in `finally`
+// Helper functions (same as Day 9)
+async function validateOrder(orderData) {
+  await new Promise(resolve => setTimeout(resolve, 50));
   
+  if (!orderData.items || orderData.items.length === 0) {
+    throw new Error('Order must contain items');
+  }
+  if (!orderData.userId) {
+    throw new Error('Order must have a userId');
+  }
+}
+
+async function checkInventory(items) {
+  await new Promise(resolve => setTimeout(resolve, 200));
+  return { allAvailable: true, unavailableItems: [] };
+}
+
+async function calculateShipping(orderData) {
+  await new Promise(resolve => setTimeout(resolve, 100));
+  return 12.99;
+}
+
+async function processPayment(amount, method) {
+  await new Promise(resolve => setTimeout(resolve, 500));
+  
+  // 20% chance of failure for demo purposes
+  if (Math.random() < 0.2) {
+    throw new Error('Payment declined: insufficient funds');
+  }
+  
+  return {
+    authId: 'auth_' + Math.random().toString(36).substring(2, 11),
+    status: 'approved'
+  };
+}
+
+async function saveOrder(orderData) {
+  await new Promise(resolve => setTimeout(resolve, 150));
+  return 'ord_' + Math.random().toString(36).substring(2, 11);
+}
+```
+
+**What's happening here:**
+- `meter.createCounter()` creates a counter we can add numbers to
+- `description` explains what the counter measures
+- We create them once, then use them throughout our app
+
+---
+
+## Step 5: Add counting to our order endpoint
+
+Now we'll update our `/orders` endpoint to count things as they happen:
+
 ```javascript
-// continuation in app.js
-app.post("/orders", async (req, res) => {
-  const startTime = Date.now();
-  const paymentMethod = req.body?.paymentMethod || "credit_card";
-
-  // UpDownCounter: one more order in progress
-  activeOrders.add(1);
-
-  return tracer.startActiveSpan("process_order", async (orderSpan) => {
+// Our instrumented endpoint (building on Day 9)
+app.post('/orders', async (req, res) => {
+  return tracer.startActiveSpan('process_order', async (orderSpan) => {
+    const orderData = req.body;
+    
+    // Add attributes to span (from Day 9)
+    orderSpan.setAttribute('order.item_count', orderData.items?.length || 0);
+    orderSpan.setAttribute('user.id', orderData.userId);
+    
     try {
-      // ... validate → inventory → shipping → payment → save
-      // totalAmount is calculated in our existing code
-
-      const durationMs = Date.now() - startTime;
-
-      // SUCCESS METRICS
-      ordersProcessed.add(1, { status: "success", method: paymentMethod });
-      orderDuration.record(durationMs, { status: "success" });
-      orderTotal.record(totalAmount, { currency: "USD" });
-
-      res.status(201).json({ status: "created", total: totalAmount });
+      // Step 1: Validate
+      await tracer.startActiveSpan('validate_order', async (span) => {
+        try {
+          await validateOrder(orderData);
+          span.setStatus({ code: SpanStatusCode.OK });
+        } catch (error) {
+          span.recordException(error);
+          span.setStatus({ code: SpanStatusCode.ERROR, message: error.message });
+          throw error;
+        } finally {
+          span.end();
+        }
+      });
+      
+      // Step 2: Check inventory
+      const inventoryResult = await tracer.startActiveSpan('check_inventory', async (span) => {
+        try {
+          const result = await checkInventory(orderData.items);
+          span.setStatus({ code: SpanStatusCode.OK });
+          return result;
+        } catch (error) {
+          span.recordException(error);
+          span.setStatus({ code: SpanStatusCode.ERROR });
+          throw error;
+        } finally {
+          span.end();
+        }
+      });
+      
+      if (!inventoryResult.allAvailable) {
+        throw new Error('Some items are out of stock');
+      }
+      
+      // Step 3: Calculate shipping
+      const shippingCost = await tracer.startActiveSpan('calculate_shipping', async (span) => {
+        try {
+          const cost = await calculateShipping(orderData);
+          span.setStatus({ code: SpanStatusCode.OK });
+          return cost;
+        } catch (error) {
+          span.recordException(error);
+          span.setStatus({ code: SpanStatusCode.ERROR });
+          throw error;
+        } finally {
+          span.end();
+        }
+      });
+      
+      // Step 4: Process payment
+      const totalAmount = (orderData.total || 100) + shippingCost;
+      
+      await tracer.startActiveSpan('process_payment', async (span) => {
+        try {
+          const paymentResult = await processPayment(totalAmount, orderData.paymentMethod);
+          span.setStatus({ code: SpanStatusCode.OK });
+        } catch (error) {
+          span.recordException(error);
+          span.setStatus({ code: SpanStatusCode.ERROR, message: 'Payment failed' });
+          throw error;
+        } finally {
+          span.end();
+        }
+      });
+      
+      // Step 5: Save order
+      const orderId = await tracer.startActiveSpan('save_order', async (span) => {
+        try {
+          const id = await saveOrder(orderData);
+          span.setStatus({ code: SpanStatusCode.OK });
+          return id;
+        } catch (error) {
+          span.recordException(error);
+          span.setStatus({ code: SpanStatusCode.ERROR });
+          throw error;
+        } finally {
+          span.end();
+        }
+      });
+      
+      // SUCCESS! Count it.
+      ordersTotal.add(1);        // One more order processed
+      ordersSuccess.add(1);      // One more successful order
+      
+      orderSpan.setStatus({ code: SpanStatusCode.OK });
+      
+      res.status(201).json({
+        orderId,
+        status: 'created',
+        total: totalAmount
+      });
+      
     } catch (error) {
-      // FAILURE METRICS
-      const durationMs = Date.now() - startTime;
-
-      ordersProcessed.add(1, { status: "failed", method: paymentMethod });
-      orderDuration.record(durationMs, { status: "failed" });
-
-      // Payment failures are counted where payment actually fails (inside process_payment span)
+      // FAILURE! Count it.
+      ordersTotal.add(1);        // One more order processed
+      ordersFailed.add(1);       // One more failed order
+      
+      orderSpan.recordException(error);
+      orderSpan.setStatus({ code: SpanStatusCode.ERROR, message: error.message });
+      
       res.status(400).json({ error: error.message });
     } finally {
-      // UpDownCounter: order is no longer in progress
-      activeOrders.add(-1);
       orderSpan.end();
     }
   });
 });
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok' });
+});
+
+const PORT = 3000;
+app.listen(PORT, () => {
+  console.log(`Order service listening on port ${PORT}`);
+  console.log('Send POST requests to /orders to see metrics in action');
+});
 ```
 
-**Where payment failures are counted**
+**What's new:**
+- `ordersTotal.add(1)` - Count every order (success or failure)
+- `ordersSuccess.add(1)` - Count only successful orders  
+- `ordersFailed.add(1)` - Count only failed orders
 
-In the `process_payment` span, on error:
-```
-paymentFailures.add(1, { method: paymentMethod });
-```
-This ensures we only count failures that truly happened during payment.
+**Key pattern:** We count in both the success and failure paths, so we capture everything.
 
---
+---
 
 ## Step 6: Run Jaeger (for traces)
 
@@ -313,89 +399,157 @@ We should see:
 ```
 OpenTelemetry initialized (traces + metrics)
 Order service listening on port 3000
+Send POST requests to /orders to see metrics in action
 ```
 
 ---
 
-## Step 8: Generate traffic
+## Step 8: Generate traffic to create metrics
 
-Send multiple requests to generate metrics:
+Send multiple requests to generate both traces and metrics:
 
 ```bash
-# Send 20 requests
-for i in {1..20}; do
+# Send 10 requests (some will succeed, some will fail due to payment simulation)
+for i in {1..10}; do
   curl -X POST http://localhost:3000/orders \
     -H "Content-Type: application/json" \
-    -d '{"userId":"user1","items":[{"sku":"A","quantity":1}],"total":100,"paymentMethod":"credit_card"}'
-  sleep 0.5
+    -d '{"userId":"user'$i'","items":[{"sku":"WIDGET-'$i'","quantity":1}],"total":99,"paymentMethod":"credit_card"}'
+  echo ""  # New line
+  sleep 1
 done
 ```
 
+**What you'll see:**
+- Some requests succeed (201 status)
+- Some requests fail (400 status) due to random payment failures
+- All requests create traces (visible in Jaeger)
+- All requests increment our counters
+
 ---
 
-## Step 9: Where do metrics go?
+## Step 9: Understanding what we measured
 
-Jaeger is great for traces, but it’s not a metrics dashboard.
+After sending requests, our counters are tracking:
 
-In this tutorial we export metrics over OTLP (`/v1/metrics`). In real setups, these metrics can be sent to:
+**ordersTotal** = Total orders processed (success + failed)
+- Started at 0
+- Goes up by 1 for every request
+- After 10 requests: should be 10
 
-- **Dash0** - Native OpenTelemetry backend with built-in dashboards and correlation
-- **Prometheus + Grafana** - Traditional open-source monitoring stack  
+**ordersSuccess** = Successful orders only  
+- Started at 0
+- Goes up by 1 only when order succeeds
+- After 10 requests: should be ~8 (80% success rate)
+
+**ordersFailed** = Failed orders only
+- Started at 0  
+- Goes up by 1 only when order fails
+- After 10 requests: should be ~2 (20% failure rate)
+
+**Math check:** `ordersSuccess + ordersFailed = ordersTotal` ✅
+
+---
+
+## Step 10: Where do metrics go?
+
+Unlike traces (which we can see in Jaeger), metrics need a different kind of backend:
+
+**For learning:** We're sending metrics over OTLP, but we can't see them in Jaeger (Jaeger is for traces).
+
+**For production:** Metrics go to:
+- **Dash0** - Native OpenTelemetry backend with built-in dashboards
+- **Prometheus + Grafana** - Traditional open-source monitoring stack
 - **Other OTEL-native vendors** - Any backend that supports OTLP metrics
 
-For now, the goal is: emit metrics correctly. Visualization comes later.
-
-**For production:** Consider using Dash0 or another OpenTelemetry-native backend that can receive OTLP metrics directly without additional configuration.
-
-## What metrics did we record today?
-
-These names match `app.js`:
-- **Counter**: `orders.processed.total`
-We add `1` for every order, with attributes like `{ status: "success" | "failed", method }`
-- **Counter**: `payments.failed.total`
-We add `1` only when payment fails, with `{ method }
-- **Histogram**: `order.processing.duration` (unit: ms)
-We record total request duration, with `{ status }`
-- **Histogram**: `order.total` (unit: `1`, currency is an attribute)
-We record the order total, with `{ currency: "USD" }`
-- **UpDownCounter**: `orders.active`
-We `add(1)` at the start of the request and `add(-1)` in `finally`
+**For now:** The goal is to emit metrics correctly. Visualization comes in later weeks.
 
 ---
 
 ## Metrics + Traces = Powerful combination
 
-**Use metrics to detect problems:**
+Here's how they work together:
+
+**Metrics tell you WHEN and HOW MUCH:**
 ```
-Alert: payment.failures rate > 10/min
+orders_failed_total increased by 5 in the last hour
+→ "We have a problem!"
 ```
 
-**Use traces to debug:**
+**Traces tell you WHY and WHERE:**
 ```
-Query traces: status=ERROR AND payment.method="credit_card"
-→ See exact failures with full context
+Query Jaeger for failed traces in the last hour
+→ See exactly which orders failed and why
+→ "All failures are in the payment step"
 ```
 
 **Example workflow:**
-1. Dashboard shows spike in `order.processing.duration` (metric)
-2. Alert fires: "P95 latency > 2000ms"
-3. Query traces for slow orders: `duration > 2000ms`
-4. Find trace showing database query taking 1800ms
-5. Fix the slow query
+1. Notice `ordersFailed` counter going up (metric)
+2. Query Jaeger for recent failed traces (trace)
+3. See that all failures are payment-related (trace details)
+4. Fix the payment issue
+
+---
+
+## Key patterns we learned
+
+### Pattern 1: Create counters once, use everywhere
+
+```javascript
+// At startup
+const ordersTotal = meter.createCounter("orders_processed_total");
+
+// In request handlers
+ordersTotal.add(1);  // Increment by 1
+```
+
+### Pattern 2: Count in both success and failure paths
+
+```javascript
+try {
+  // ... do work ...
+  ordersTotal.add(1);
+  ordersSuccess.add(1);
+} catch (error) {
+  ordersTotal.add(1);
+  ordersFailed.add(1);
+}
+```
+
+### Pattern 3: Use descriptive names
+
+```javascript
+// Good names
+"orders_processed_total"
+"payment_failures_total" 
+"requests_received_total"
+
+// Bad names
+"counter1"
+"stuff"
+"things"
+```
 
 ---
 
 ## What I'm taking into Day 11
 
-Today we learned the **Metrics API**—the methods to create counters, histograms, and gauges:
+Today we learned **basic metrics** - specifically counters that help us see patterns:
 
 **Key skills:**
 - Creating counters with `meter.createCounter()`
-- Creating histograms with `meter.createHistogram()`
-- Creating gauges with `meter.createObservableGauge()`
-- Adding attributes (dimensions) to metrics
-- Using metrics and traces together
+- Incrementing counters with `counter.add(1)`
+- Counting both successes and failures
+- Understanding that metrics show patterns, traces show details
 
-**Tomorrow (Day 11):** We'll learn the **Logs API** and see how to correlate logs with traces and metrics using trace context.
+**The simple pattern:**
+```javascript
+// Create once
+const counter = meter.createCounter("things_total");
+
+// Use everywhere
+counter.add(1);  // Count one more thing
+```
+
+**Tomorrow (Day 11):** We'll learn **basic logging** and see how logs work alongside traces and metrics to give us the complete picture.
 
 See you on Day 11!
