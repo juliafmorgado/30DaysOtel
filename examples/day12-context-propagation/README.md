@@ -1,13 +1,18 @@
-# Day 12: Context Propagation Demo
+# Day 12 - Context Propagation Example
 
-An Express API demonstrating **Context Propagation** (how trace context flows through your application and when it breaks).
+This example demonstrates basic context propagation concepts using OpenTelemetry, showing when it works automatically and when it needs manual help.
 
-## What's different from Day 11?
+## What this example shows
 
-- **Context propagation examples** (automatic vs broken vs manual)
-- **Cross-service simulation** (how context flows between services)
-- **Troubleshooting patterns** (fixing broken trace relationships)
-- **All previous telemetry still works** (traces, metrics, logs from Days 9-11)
+- **Automatic context propagation** (the normal, happy case)
+- **Broken context propagation** (when setTimeout breaks the connection)
+- **Manual context propagation** (how to fix broken connections)
+
+## Context propagation scenarios
+
+1. **Automatic** - async/await preserves context (works great)
+2. **Broken** - setTimeout loses context (creates separate traces)
+3. **Fixed** - using `context.with()` to restore connections
 
 ## Quick Start
 
@@ -20,151 +25,92 @@ An Express API demonstrating **Context Propagation** (how trace context flows th
    ```bash
    docker run -d --name jaeger \
      -p 16686:16686 \
-     -p 4317:4317 \
      -p 4318:4318 \
      jaegertracing/all-in-one:latest
    ```
 
-3. **Run the app:**
+3. **Run the application:**
    ```bash
    node --require ./instrumentation.js app.js
    ```
 
-4. **Test different propagation scenarios:**
+4. **Test each scenario:**
    ```bash
-   # Automatic propagation (works perfectly)
+   # Test automatic propagation (should work perfectly)
    curl http://localhost:3000/automatic
    
-   # Broken propagation (child span becomes orphaned)
+   # Test broken propagation (child span will be orphaned)
    curl http://localhost:3000/broken
    
-   # Manual propagation (fixes the broken case)
-   curl http://localhost:3000/manual
-   
-   # Cross-service simulation (spans connected across services)
-   curl http://localhost:3000/cross-service
+   # Test fixed propagation (child span properly connected)
+   curl http://localhost:3000/fixed
    ```
 
-5. **View results in Jaeger:**
-   - **Traces:** http://localhost:16686 (Jaeger UI)
-   - Look for service: `context-demo`
-   - Compare the trace structures between different endpoints
+5. **View traces in Jaeger:**
+   - Open http://localhost:16686
+   - Select "context-demo" 
+   - Click "Find Traces"
 
-## What You'll Learn
+## What you'll see in Jaeger
 
-- When context propagation works automatically (async/await, sync calls)
-- When context propagation breaks (setTimeout, callbacks, queues)
-- How to fix broken propagation with `context.with()`
-- How context flows between services via HTTP headers
-- Debugging techniques for broken trace relationships
-
-See the full tutorial: [Day 12 - Context Propagation](../../week2/day12.md)
-
-## Key Context Propagation Patterns
-
-### Automatic Propagation
-```javascript
-tracer.startActiveSpan('parent', async (span) => {
-  await tracer.startActiveSpan('child', async (childSpan) => {
-    // This works - child is properly nested under parent
-    childSpan.end();
-  });
-  span.end();
-});
-```
-
-### Broken Propagation
-```javascript
-tracer.startActiveSpan('parent', (span) => {
-  setTimeout(() => {
-    tracer.startActiveSpan('orphaned', (childSpan) => {
-      // This breaks - orphaned starts a new trace!
-      childSpan.end();
-    });
-  }, 100);
-  span.end();
-});
-```
-
-### Manual Propagation
-```javascript
-tracer.startActiveSpan('parent', (span) => {
-  const currentContext = context.active(); // Capture context
-  
-  setTimeout(() => {
-    context.with(currentContext, () => { // Restore context
-      tracer.startActiveSpan('fixed', (childSpan) => {
-        // This works - child is properly nested under parent
-        childSpan.end();
-      });
-    });
-  }, 100);
-  span.end();
-});
-```
-
-## Expected Results in Jaeger
-
-### `/automatic` endpoint:
+### Automatic Propagation ✅
 ```
 GET /automatic
 └─ parent_operation
-   └─ child_async
-      └─ grandchild
+   └─ child_operation
+      └─ grandchild_operation
 ```
+Perfect family tree - context flows automatically.
 
-### `/broken` endpoint:
+### Broken Propagation ❌
 ```
 GET /broken
 └─ parent_operation
 
 orphaned_child (separate trace!)
 ```
+The child span starts a new trace because context was lost.
 
-### `/manual` endpoint:
+### Fixed Propagation ✅
 ```
-GET /manual
+GET /fixed
 └─ parent_operation
    └─ fixed_child
 ```
+Using `context.with()` restored the parent-child relationship.
 
-### `/cross-service` endpoint:
+## Key Learning Points
+
+- **Context propagation usually works automatically** for normal async/await code
+- **setTimeout and setInterval can break context** propagation
+- **The fix is simple**: capture context with `context.active()` and restore with `context.with()`
+- **Most beginners don't need to worry** about this until they see broken traces
+- **Visual debugging**: Jaeger makes it easy to spot broken context propagation
+
+## The Simple Fix Pattern
+
+```javascript
+// 1. Capture current context
+const currentContext = context.active();
+
+// 2. Later, in a callback, restore it
+setTimeout(() => {
+  context.with(currentContext, () => {
+    // Code here sees the captured context
+    tracer.startActiveSpan('child', (span) => {
+      // This span will be properly connected
+      span.end();
+    });
+  });
+}, 1000);
 ```
-GET /cross-service
-└─ service_a_operation
-   └─ service_b_operation
-```
 
-## When You Need Manual Context Propagation
+## Files
 
-- **Event emitters and callbacks**
-- **setTimeout/setInterval**
-- **Message queues (producer → consumer)**
-- **Worker threads and child processes**
-- **Custom async patterns**
+- `app.js` - Three simple examples showing context propagation scenarios
+- `instrumentation.js` - Basic OpenTelemetry configuration (traces only)
+- `package.json` - Dependencies
 
-## Troubleshooting
+## Next Steps
 
-### "My spans aren't connected"
-1. Check if you're using `startActiveSpan` (not `startSpan`)
-2. Look for callbacks or setTimeout - use `context.with()`
-3. Verify auto-instrumentation is enabled for HTTP calls
-
-### "I see multiple traces instead of one"
-- Context was lost somewhere
-- Check for event emitters without bound context
-- Look for setTimeout/setInterval without `context.with()`
-
-### "Context works locally but not across services"
-- Verify HTTP auto-instrumentation is enabled
-- Check that headers aren't being stripped by proxies
-- Ensure both services use compatible OpenTelemetry versions
-
-## For Production
-
-Consider using **Dash0** or another OpenTelemetry-native backend that can:
-- Automatically correlate traces across services
-- Provide built-in context propagation debugging
-- Handle OTLP traces, metrics, and logs natively
-
-This tutorial's OTLP export will work with any OTEL-compatible backend.
+This example prepares you for Day 13 where we'll learn about basic SDK concepts like samplers, processors, and exporters.

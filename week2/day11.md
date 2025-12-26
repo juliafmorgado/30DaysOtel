@@ -1,10 +1,10 @@
-# Day 11 – Logs API: Structured Logging with Trace Correlation
+# Day 11 – Logs API: Simple Structured Logging
 
-For the past two days, we've learned the Tracing API ([Day 9](https://github.com/juliafmorgado/30DaysOtel/blob/main/week2/day9.md)) and Metrics API ([Day 10](https://github.com/juliafmorgado/30DaysOtel/blob/main/week2/day10.md)). Today we complete the observability trio with the **Logs API** so we can answer questions like "What exactly happened during this failed order?", "Which user had payment issues?", "What were the exact steps that led to this error?"
+For the past two days, we've learned the Tracing API ([Day 9](https://github.com/juliafmorgado/30DaysOtel/blob/main/week2/day9.md)) and Metrics API ([Day 10](https://github.com/juliafmorgado/30DaysOtel/blob/main/week2/day10.md)). Today we complete the observability trio with **basic logging** so we can answer questions like "What exactly happened during this failed order?"
 
 > **Working example:** The complete code for this tutorial is available in [`examples/day11-logs-api/`](../examples/day11-logs-api/)
 >
-> **Note:** This builds on Days 9 & 10. If you haven't done those yet, start there: [`examples/day9-tracing-api/`](../examples/day9-tracing-api/)
+> **Note:** This builds on Days 9 & 10. If you haven't done those yet, start there: [`examples/day10-metrics-api/`](../examples/day10-metrics-api/)
 
 ---
 
@@ -13,20 +13,25 @@ For the past two days, we've learned the Tracing API ([Day 9](https://github.com
 We've already been exposed to logging concepts:
 
 - **[Day 3](https://github.com/juliafmorgado/30DaysOtel/blob/main/week1/day3.md):** Logs provide detailed event information, traces show request flows
-- **[Day 5](https://github.com/juliafmorgado/30DaysOtel/blob/main/week1/day5.md):** Semantic conventions apply to logs too (structured attributes)
 - **[Day 6](https://github.com/juliafmorgado/30DaysOtel/blob/main/week1/day6.md):** Auto-instrumentation creates some logs automatically
+
+Today's focus: creating our **own simple logs** using the Logs API.
 
 ---
 
-## Logs vs Traces vs Metrics: The complete picture
+## Logs vs Traces vs Metrics: The simple difference
 
 | Traces | Metrics | Logs |
 |--------|---------|------|
-| Request flows | Aggregate patterns | Detailed events |
-| "This order took 1200ms" | "Average order time: 450ms" | "Payment failed: insufficient funds" |
-| Spans, attributes, events | Counters, gauges, histograms | Structured messages with attributes |
-| "Why did this fail?" | "How often does this fail?" | "What exactly happened?" |
-| Debugging flows | Monitoring & Alerting | Debugging details |
+| Individual request flows | Patterns across requests | Detailed messages about events |
+| "This order took 1200ms" | "We processed 50 orders today" | "Payment failed: insufficient funds" |
+| "Why did this request fail?" | "How many requests are failing?" | "What exactly went wrong?" |
+| Shows the journey | Shows the statistics | Shows the details |
+
+**Think of it like this:**
+- **Traces** = The story of a request ("John's order went through these steps")
+- **Metrics** = The statistics ("10% of orders are failing")  
+- **Logs** = The details ("Payment failed because card was declined")
 
 ---
 
@@ -34,87 +39,82 @@ We've already been exposed to logging concepts:
 
 ### Traditional Logging (what we used to do)
 ```javascript
-console.log('Payment processed for user user_123 amount 149.99 USD');
+console.log('Payment failed for user user_123 with error insufficient funds');
 ```
 
 **Problems:**
-- Hard to search and filter
-- No correlation with traces
-- Difficult to extract specific values
+- Hard to search for specific users or errors
+- No connection to traces
 - Not machine-readable
 
 ### Structured Logging (OpenTelemetry way)
 ```javascript
 logger.emit({
-  severityText: 'INFO',
-  body: 'Payment processed successfully',
+  severityText: 'ERROR',
+  body: 'Payment processing failed',
   attributes: {
     'user.id': 'user_123',
-    'payment.amount': 149.99,
-    'payment.currency': 'USD'
+    'error.message': 'insufficient funds'
   }
 });
 ```
 
-**These logs are machine-parseable, queryable, filterable and they automatically includes trace_id and span_id.**
+**Benefits:**
+- Easy to search and filter
+- Automatically connected to traces
+- Machine-readable
 
 ---
 
-## Log severity levels
+## The magic: Automatic trace correlation
 
-| Level | Number | When to use | Example |
-|-------|--------|-------------|-------------|
-| `DEBUG` | 5 | Detailed debugging information for Devs |
-| `INFO` | 9 | General informational messages | "Payment processed successfully" |
-| `WARN` | 13 | Warning messages (potential issues) | "Payment processing slow (>2s)" |
-| `ERROR` | 17 | Error messages (operation failed) | "Payment failed: Card declined"|
-
----
-
-## How log correlation works
-
-When you emit a log inside an active span, OpenTelemetry automatically adds `trace_id` and `span_id`.
+When you create a log inside a span, OpenTelemetry automatically adds the trace ID and span ID:
 
 ```javascript
 tracer.startActiveSpan("process_payment", span => {
   logger.emit({ body: "Payment started" });
+  // This log automatically gets trace_id and span_id!
 });
 ```
-**Now we can:**
-- Click a failed trace → see all logs for that request
+
+**This means:**
+- See a failed trace → find all logs for that request
 - See an error log → jump to the exact trace
 - Understand what happened, where, and when
-
-> [!NOTE]
-> **Mental model**
->
-> Metrics → WHEN (failures spiked at 10:30 AM)
-> 
-> Logs → WHAT (payment declined, insufficient funds)
-> 
-> Traces → WHERE (in payment span) and WHO (user_42)
-> 
-> All three together = **observability.**
 
 ---
 
 ## What we're building today
 
-We'll add structured logging to the order API from Days 9 & 10:
+We'll add **simple structured logging** to the order API from Days 9 & 10:
 
 **Logs we'll create:**
 1. **Order started** - When processing begins
-2. **Payment failed** - When payment processing fails
-3. **Order completed** - When order succeeds
-4. **Order failed** - When any step fails
+2. **Order completed** - When order succeeds  
+3. **Order failed** - When any step fails
 
-All logs will automatically include trace and span IDs for correlation.
+That's it! Simple logging to capture what's happening.
 
 ---
 
-## Step 1: Install log dependencies
+## Step 1: Set up the project
 
-Building on Day 10's project:
+If you finished Day 10, copy that project:
+
+```bash
+cp -r day10-metrics-api day11-logs-api
+cd day11-logs-api
+```
+
+If starting fresh:
+
+```bash
+mkdir day11-logs-api
+cd day11-logs-api
+npm init -y
+```
+
+**Install dependencies:**
 
 ```bash
 npm install express \
@@ -131,15 +131,7 @@ npm install express \
 
 ---
 
-## Step 2: Configure OpenTelemetry (traces + metrics + logs)
-
->[!IMPORTANT]
->Important architecture note:
->- Jaeger is primarily a tracing backend
->- Jaeger does not store application logs in a searchable way
->- Logs should be sent to **Dash0** (native OpenTelemetry backend) or another OTEL-native backends** that support OTLP
->  - typically via the OpenTelemetry Collector in production
-> For learning purposes, we'll configure log export correctly. The OTLP export works with any compatible backend.
+## Step 2: Update instrumentation to include logs
 
 Let's update `instrumentation.js` to export traces, metrics, AND logs:
 
@@ -170,7 +162,7 @@ const sdk = new NodeSDK({
     exporter: new OTLPMetricExporter({
       url: "http://localhost:4318/v1/metrics",
     }),
-    exportIntervalMillis: 5000,  // Export metrics every 5 seconds
+    exportIntervalMillis: 10000,  // Export metrics every 10 seconds
   }),
   
   // Log exporter (NEW for Day 11)
@@ -187,19 +179,23 @@ sdk.start();
 console.log("OpenTelemetry initialized (traces + metrics + logs)");
 ```
 
+**What's new:**
+- Added log export alongside traces and metrics
+- Logs are sent to backends that support OTLP logs
+
 ---
 
 ## Step 3: Get a Logger (like we got Tracer and Meter)
 
 Think of it like this:
-- Tracer = makes spans (traces)
-- Meter = makes instruments (metrics)
-- Logger = makes log records (logs)
+- **Tracer** = creates spans (for traces)
+- **Meter** = creates counters (for metrics)
+- **Logger** = creates log messages (for logs)
 
 ```javascript
 // app.js
 const express = require('express');
-const { trace, metrics, logs } = require('@opentelemetry/api');
+const { trace, metrics, logs, SpanStatusCode } = require('@opentelemetry/api');
 
 const app = express();
 app.use(express.json());
@@ -213,55 +209,174 @@ const meter = metrics.getMeter('order-service', '1.0.0');
 // Get a logger (NEW for Day 11)
 const logger = logs.getLogger('order-service', '1.0.0');
 
-// Next we'll add structured logging throughout our order processing
+// Next we'll add our counters and logging
 ```
 
 ---
 
-## Step 4: Add structured logging to order processing
+## Step 4: Add simple logging to our order endpoint
 
-Here's how we add logs at key points in our order flow:
+Now we'll update our `/orders` endpoint to log key events:
 
 ```javascript
-app.post("/orders", async (req, res) => {
-  const startTime = Date.now();
-  const paymentMethod = req.body?.paymentMethod || "credit_card";
+// Create counters (from Day 10)
+const ordersTotal = meter.createCounter("orders_processed_total", {
+  description: "Total number of orders processed (success + failed)",
+});
 
-  // UpDownCounter: one more order in progress
-  activeOrders.add(1);
+const ordersSuccess = meter.createCounter("orders_success_total", {
+  description: "Total number of successful orders",
+});
 
-  return tracer.startActiveSpan("process_order", async (orderSpan) => {
+const ordersFailed = meter.createCounter("orders_failed_total", {
+  description: "Total number of failed orders",
+});
+
+// Helper functions (same as Days 9 & 10)
+async function validateOrder(orderData) {
+  await new Promise(resolve => setTimeout(resolve, 50));
+  
+  if (!orderData.items || orderData.items.length === 0) {
+    throw new Error('Order must contain items');
+  }
+  if (!orderData.userId) {
+    throw new Error('Order must have a userId');
+  }
+}
+
+async function checkInventory(items) {
+  await new Promise(resolve => setTimeout(resolve, 200));
+  return { allAvailable: true, unavailableItems: [] };
+}
+
+async function calculateShipping(orderData) {
+  await new Promise(resolve => setTimeout(resolve, 100));
+  return 12.99;
+}
+
+async function processPayment(amount, method) {
+  await new Promise(resolve => setTimeout(resolve, 500));
+  
+  // 20% chance of failure for demo purposes
+  if (Math.random() < 0.2) {
+    throw new Error('Payment declined: insufficient funds');
+  }
+  
+  return {
+    authId: 'auth_' + Math.random().toString(36).substring(2, 11),
+    status: 'approved'
+  };
+}
+
+async function saveOrder(orderData) {
+  await new Promise(resolve => setTimeout(resolve, 150));
+  return 'ord_' + Math.random().toString(36).substring(2, 11);
+}
+
+// Our instrumented endpoint (building on Days 9 & 10)
+app.post('/orders', async (req, res) => {
+  return tracer.startActiveSpan('process_order', async (orderSpan) => {
     const orderData = req.body;
-    const orderSubtotal = orderData.total || 100;
-
-    orderSpan.setAttribute("order.item_count", orderData.items?.length || 0);
-    orderSpan.setAttribute("user.id", orderData.userId);
-    orderSpan.setAttribute("order.subtotal", orderSubtotal);
-
-    // STRUCTURED LOG: Order started (NEW for Day 11)
+    
+    // Add attributes to span (from Day 9)
+    orderSpan.setAttribute('order.item_count', orderData.items?.length || 0);
+    orderSpan.setAttribute('user.id', orderData.userId);
+    
+    // LOG: Order started (NEW for Day 11)
     logger.emit({
       severityText: "INFO",
       body: "Order processing started",
       attributes: {
         "user.id": orderData.userId,
         "order.item_count": orderData.items?.length || 0,
-        "order.subtotal": orderSubtotal,
-        "order.payment_method": paymentMethod,
       },
     });
-
+    
     try {
-      // ... validate → inventory → shipping → payment → save
-      // (same business logic as Days 9 & 10)
-
-      const durationMs = Date.now() - startTime;
-
-      // SUCCESS METRICS (from Day 10)
-      ordersProcessed.add(1, { status: "success", method: paymentMethod });
-      orderDuration.record(durationMs, { status: "success" });
-      orderTotal.record(totalAmount, { currency: "USD" });
-
-      // STRUCTURED LOG: Order completed successfully (NEW for Day 11)
+      // Step 1: Validate (same as before)
+      await tracer.startActiveSpan('validate_order', async (span) => {
+        try {
+          await validateOrder(orderData);
+          span.setStatus({ code: SpanStatusCode.OK });
+        } catch (error) {
+          span.recordException(error);
+          span.setStatus({ code: SpanStatusCode.ERROR, message: error.message });
+          throw error;
+        } finally {
+          span.end();
+        }
+      });
+      
+      // Step 2: Check inventory (same as before)
+      const inventoryResult = await tracer.startActiveSpan('check_inventory', async (span) => {
+        try {
+          const result = await checkInventory(orderData.items);
+          span.setStatus({ code: SpanStatusCode.OK });
+          return result;
+        } catch (error) {
+          span.recordException(error);
+          span.setStatus({ code: SpanStatusCode.ERROR });
+          throw error;
+        } finally {
+          span.end();
+        }
+      });
+      
+      if (!inventoryResult.allAvailable) {
+        throw new Error('Some items are out of stock');
+      }
+      
+      // Step 3: Calculate shipping (same as before)
+      const shippingCost = await tracer.startActiveSpan('calculate_shipping', async (span) => {
+        try {
+          const cost = await calculateShipping(orderData);
+          span.setStatus({ code: SpanStatusCode.OK });
+          return cost;
+        } catch (error) {
+          span.recordException(error);
+          span.setStatus({ code: SpanStatusCode.ERROR });
+          throw error;
+        } finally {
+          span.end();
+        }
+      });
+      
+      // Step 4: Process payment (same as before)
+      const totalAmount = (orderData.total || 100) + shippingCost;
+      
+      await tracer.startActiveSpan('process_payment', async (span) => {
+        try {
+          const paymentResult = await processPayment(totalAmount, orderData.paymentMethod);
+          span.setStatus({ code: SpanStatusCode.OK });
+        } catch (error) {
+          span.recordException(error);
+          span.setStatus({ code: SpanStatusCode.ERROR, message: 'Payment failed' });
+          throw error;
+        } finally {
+          span.end();
+        }
+      });
+      
+      // Step 5: Save order (same as before)
+      const orderId = await tracer.startActiveSpan('save_order', async (span) => {
+        try {
+          const id = await saveOrder(orderData);
+          span.setStatus({ code: SpanStatusCode.OK });
+          return id;
+        } catch (error) {
+          span.recordException(error);
+          span.setStatus({ code: SpanStatusCode.ERROR });
+          throw error;
+        } finally {
+          span.end();
+        }
+      });
+      
+      // SUCCESS! Count it (from Day 10) and log it (NEW for Day 11)
+      ordersTotal.add(1);        
+      ordersSuccess.add(1);      
+      
+      // LOG: Order completed successfully (NEW for Day 11)
       logger.emit({
         severityText: "INFO",
         body: "Order processing completed successfully",
@@ -269,57 +384,61 @@ app.post("/orders", async (req, res) => {
           "order.id": orderId,
           "user.id": orderData.userId,
           "order.total": totalAmount,
-          "order.duration_ms": durationMs,
-          "payment.method": paymentMethod,
         },
       });
-
-      res.status(201).json({ status: "created", total: totalAmount });
+      
+      orderSpan.setStatus({ code: SpanStatusCode.OK });
+      
+      res.status(201).json({
+        orderId,
+        status: 'created',
+        total: totalAmount
+      });
+      
     } catch (error) {
-      // FAILURE METRICS (from Day 10)
-      const durationMs = Date.now() - startTime;
-      ordersProcessed.add(1, { status: "failed", method: paymentMethod });
-      orderDuration.record(durationMs, { status: "failed" });
-
-      // STRUCTURED LOG: Order failed (NEW for Day 11)
+      // FAILURE! Count it (from Day 10) and log it (NEW for Day 11)
+      ordersTotal.add(1);        
+      ordersFailed.add(1);       
+      
+      // LOG: Order failed (NEW for Day 11)
       logger.emit({
         severityText: "ERROR",
         body: "Order processing failed",
         attributes: {
           "user.id": orderData.userId,
-          "order.duration_ms": durationMs,
-          "payment.method": paymentMethod,
           "error.message": error.message,
-          "error.type": error.constructor.name,
         },
       });
-
+      
+      orderSpan.recordException(error);
+      orderSpan.setStatus({ code: SpanStatusCode.ERROR, message: error.message });
+      
       res.status(400).json({ error: error.message });
     } finally {
-      // UpDownCounter: order is no longer in progress
-      activeOrders.add(-1);
       orderSpan.end();
     }
   });
 });
-```
 
-**Where payment failures are logged**
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok' });
+});
 
-In the `process_payment` span, on error:
-```javascript
-// STRUCTURED LOG: Payment failed (NEW for Day 11)
-logger.emit({
-  severityText: "ERROR",
-  body: "Payment processing failed",
-  attributes: {
-    "payment.method": paymentMethod,
-    "payment.amount": totalAmount,
-    "error.message": error.message,
-    "user.id": orderData.userId,
-  },
+const PORT = 3000;
+app.listen(PORT, () => {
+  console.log(`Order service listening on port ${PORT}`);
+  console.log('Send POST requests to /orders to see logs in action');
 });
 ```
+
+**What's new:**
+- `logger.emit()` - Create structured log messages
+- `severityText: "INFO"` - Normal operations
+- `severityText: "ERROR"` - When things fail
+- `attributes` - Structured data (user ID, error message, etc.)
+
+**Key pattern:** We log at the start, success, and failure points to capture the key events.
 
 ---
 
@@ -346,234 +465,227 @@ We should see:
 ```
 OpenTelemetry initialized (traces + metrics + logs)
 Order service listening on port 3000
+Send POST requests to /orders to see logs in action
 ```
 
 ---
 
-## Step 7: Generate traffic and see logs
+## Step 7: Generate traffic to see logs
 
 Send multiple requests to generate logs:
 
 ```bash
-# Send 10 requests (some will fail due to payment simulation)
+# Send 10 requests (some will succeed, some will fail)
 for i in {1..10}; do
   curl -X POST http://localhost:3000/orders \
     -H "Content-Type: application/json" \
-    -d '{"userId":"user'$i'","items":[{"sku":"A","quantity":1}],"total":100,"paymentMethod":"credit_card"}'
-  sleep 0.5
+    -d '{"userId":"user'$i'","items":[{"sku":"WIDGET-'$i'","quantity":1}],"total":99,"paymentMethod":"credit_card"}'
+  echo ""  # New line
+  sleep 1
 done
 ```
 
-**In your console, you'll see structured logs like:**
+**What you'll see:**
+- Some requests succeed (201 status)
+- Some requests fail (400 status) due to random payment failures
+- All requests create traces (visible in Jaeger)
+- All requests increment counters (from Day 10)
+- All requests create structured logs (NEW!)
 
+---
+
+## Step 8: Understanding what we logged
+
+After sending requests, our logs capture:
+
+**Order Started** (INFO level)
 ```json
 {
-  "timestamp": "2024-01-15T10:30:00.000Z",
   "severityText": "INFO",
   "body": "Order processing started",
   "traceId": "abc123...",
   "spanId": "def456...",
   "attributes": {
     "user.id": "user1",
-    "order.item_count": 1,
-    "order.subtotal": 100,
-    "order.payment_method": "credit_card"
+    "order.item_count": 1
   }
 }
 ```
 
-**Notice the automatic trace correlation:**
-- `traceId` - Links this log to the trace
+**Order Completed** (INFO level)
+```json
+{
+  "severityText": "INFO",
+  "body": "Order processing completed successfully",
+  "traceId": "abc123...",
+  "spanId": "def456...",
+  "attributes": {
+    "order.id": "ord_xyz789",
+    "user.id": "user1",
+    "order.total": 111.99
+  }
+}
+```
+
+**Order Failed** (ERROR level)
+```json
+{
+  "severityText": "ERROR",
+  "body": "Order processing failed",
+  "traceId": "abc123...",
+  "spanId": "def456...",
+  "attributes": {
+    "user.id": "user1",
+    "error.message": "Payment declined: insufficient funds"
+  }
+}
+```
+
+**Notice the automatic correlation:**
+- `traceId` - Links this log to the trace in Jaeger
 - `spanId` - Links this log to the specific span
 
 ---
 
-## What structured logs did we create today?
+## Step 9: Where do logs go?
 
-These logs match our `app.js`:
+Unlike traces (which we see in Jaeger), logs need a backend that supports OTLP logs:
 
-- **Order Started**: When processing begins
-  ```javascript
-  {
-    severityText: "INFO",
-    body: "Order processing started",
-    attributes: {
-      "user.id": "user_123",
-      "order.item_count": 2,
-      "order.payment_method": "credit_card"
-    }
-  }
-  ```
+**For learning:** We're sending logs over OTLP, but we can't see them in Jaeger (Jaeger is primarily for traces).
 
-- **Payment Failed**: When payment processing fails
-  ```javascript
-  {
-    severityText: "ERROR", 
-    body: "Payment processing failed",
-    attributes: {
-      "payment.method": "credit_card",
-      "error.message": "insufficient funds"
-    }
-  }
-  ```
+**For production:** Logs go to:
+- **Dash0** - Native OpenTelemetry backend with built-in log search
+- **Elasticsearch + Kibana** - Traditional log management stack
+- **Other OTEL-native vendors** - Any backend that supports OTLP logs
 
-- **Order Completed**: When order succeeds
-  ```javascript
-  {
-    severityText: "INFO",
-    body: "Order processing completed successfully", 
-    attributes: {
-      "order.id": "ord_abc123",
-      "order.total": 112.99,
-      "order.duration_ms": 850
-    }
-  }
-  ```
----
-
-## Correlating logs with traces
-
-### Workflow: Trace → Logs
-
-1. Open Jaeger: http://localhost:16686
-2. Find a failed trace (red)
-3. Copy the `trace_id`
-4. Search your logs for that `trace_id`
-
-**Result:** You see all logs from that specific request.
-
-### Workflow: Logs → Trace
-
-1. See an ERROR log
-2. Copy the `traceId`
-3. Search Jaeger for that trace
-4. View the complete request flow
-
-**Result:** You see where in the flow the error occurred.
+**For now:** The goal is to emit logs correctly. Visualization comes in later weeks.
 
 ---
 
-## Logs + Traces + Metrics = Complete Observability
+## Logs + Traces + Metrics = Complete observability
 
-**Use metrics to detect problems:**
-```
-Alert: payment.failures rate > 10/min
-```
+Here's how all three work together:
 
-**Use traces to understand the flow:**
+**Metrics tell you WHEN:**
 ```
-Query traces: status=ERROR AND payment.method="credit_card"
-→ See the exact request flow that failed
+orders_failed_total increased by 5 in the last hour
+→ "We have a problem!"
 ```
 
-**Use logs to get the details:**
+**Traces tell you WHERE:**
 ```
-Query logs: trace_id="abc123" 
-→ See all log events for that specific trace
-→ Get exact error messages, user IDs, amounts
+Query Jaeger for failed traces in the last hour
+→ See exactly which step failed
+→ "All failures are in the payment step"
+```
+
+**Logs tell you WHAT:**
+```
+Query logs for those trace IDs
+→ See exact error messages
+→ "Payment declined: insufficient funds"
 ```
 
 **Example workflow:**
-1. Dashboard shows spike in payment failures (metric)
-2. Alert fires: "Payment failure rate > 10/min"
-3. Query traces for failed payments
-4. Find a specific failed trace ID
-5. Query logs for that trace ID
-6. See exact error: "Payment declined: card expired"
-7. Fix the user experience for expired cards
+1. Notice `ordersFailed` counter going up (metric)
+2. Query Jaeger for recent failed traces (trace)
+3. Copy a failed trace ID
+4. Search logs for that trace ID (log)
+5. See exact error: "Payment declined: insufficient funds"
+6. Fix the payment handling
 
 ---
 
-## Key logging patterns we learned
+## Key patterns we learned
 
-### Pattern 1: Structured attributes instead of string interpolation
+### Pattern 1: Simple structured logging
 
-**Don't do this:**
 ```javascript
-console.log(`Order ${orderId} for user ${userId} failed: ${error.message}`);
-```
-
-**Do this:**
-```javascript
+// Create structured logs
 logger.emit({
-  severityText: "ERROR",
-  body: "Order processing failed",
+  severityText: "INFO",  // or "ERROR"
+  body: "What happened",
   attributes: {
-    "order.id": orderId,
     "user.id": userId,
     "error.message": error.message
   }
 });
 ```
 
-### Pattern 2: Consistent attribute naming
-
-Use semantic conventions:
-- `order.id`, `user.id`, `order.total`
-- `payment.method`, `payment.amount`
-- `error.message`, `error.type`
-
-### Pattern 3: Appropriate severity levels
-
-- `INFO` - Normal operations (order started, completed)
-- `WARN` - Unusual but not errors (retries, fallbacks)
-- `ERROR` - Actual failures (payment declined, validation failed)
-- `DEBUG` - Detailed debugging info (usually not in production)
-
-### Pattern 4: Log inside spans for automatic correlation
+### Pattern 2: Log at key points
 
 ```javascript
-tracer.startActiveSpan('process_payment', async (span) => {
-  try {
-    await processPayment();
-    
-    // This log automatically gets the trace_id and span_id
-    logger.emit({
-      severityText: "INFO",
-      body: "Payment processed successfully"
-    });
-  } catch (error) {
-    // This error log is automatically correlated to the trace
-    logger.emit({
-      severityText: "ERROR", 
-      body: "Payment processing failed",
-      attributes: { "error.message": error.message }
-    });
-  }
-});
+try {
+  // Log when starting
+  logger.emit({ severityText: "INFO", body: "Order started" });
+  
+  // ... do work ...
+  
+  // Log when succeeding
+  logger.emit({ severityText: "INFO", body: "Order completed" });
+} catch (error) {
+  // Log when failing
+  logger.emit({ 
+    severityText: "ERROR", 
+    body: "Order failed",
+    attributes: { "error.message": error.message }
+  });
+}
+```
+
+### Pattern 3: Use consistent attribute names
+
+```javascript
+// Good attributes
+"user.id", "order.id", "order.total"
+"error.message", "payment.method"
+
+// Bad attributes  
+"userId", "orderId", "total"
+"errorMsg", "payMethod"
 ```
 
 ---
 
 ## What I'm taking into Day 12
 
-Today we learned the **Logs API** which are the methods to create structured, correlated logs, AND the final piece of observability.
+Today we learned **basic structured logging** - the final piece of basic observability:
 
 **Key skills:**
 - Creating structured logs with `logger.emit()`
-- Using severity levels (INFO, WARN, ERROR, DEBUG)
+- Using severity levels (INFO for normal, ERROR for failures)
 - Adding structured attributes for context
-- Automatic trace correlation (trace_id and span_id)
-- Using logs, traces, and metrics together for complete observability
+- Understanding automatic trace correlation
+- Using logs, traces, and metrics together
 
-**The complete observability pattern:**
+**The complete pattern:**
 ```javascript
-// Traces: Follow the request flow
 tracer.startActiveSpan('process_order', async (span) => {
+  // Log what's happening
+  logger.emit({ severityText: "INFO", body: "Order started" });
   
-  // Logs: Record what happened
-  logger.emit({
-    severityText: "INFO",
-    body: "Order processing started"
-  });
-  
-  // Metrics: Count and measure
-  ordersProcessed.add(1);
-  
-  // All three are automatically correlated!
+  try {
+    // ... do work ...
+    
+    // Count successes
+    ordersSuccess.add(1);
+    
+    // Log success
+    logger.emit({ severityText: "INFO", body: "Order completed" });
+  } catch (error) {
+    // Count failures  
+    ordersFailed.add(1);
+    
+    // Log failure
+    logger.emit({ 
+      severityText: "ERROR", 
+      body: "Order failed",
+      attributes: { "error.message": error.message }
+    });
+  }
 });
 ```
 
-**Tomorrow (Day 12):** We'll learn **Context Propagation** and see how trace context flows between services and async operations.
+**Tomorrow (Day 12):** We'll learn **basic context propagation** and understand how trace context flows through your application.
 
 See you on Day 12!

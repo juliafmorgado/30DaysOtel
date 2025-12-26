@@ -1,3 +1,4 @@
+// instrumentation.js
 const { NodeSDK } = require("@opentelemetry/sdk-node");
 const { getNodeAutoInstrumentations } = require("@opentelemetry/auto-instrumentations-node");
 const { OTLPTraceExporter } = require("@opentelemetry/exporter-trace-otlp-http");
@@ -23,7 +24,7 @@ const sdk = new NodeSDK({
     exporter: new OTLPMetricExporter({
       url: "http://localhost:4318/v1/metrics",
     }),
-    exportIntervalMillis: 5000,  // Export metrics every 5 seconds
+    exportIntervalMillis: 10000,  // Export metrics every 10 seconds
   }),
   
   // Log exporter (NEW for Day 11)

@@ -69,15 +69,15 @@ That's it! Simple counting to see patterns.
 If you finished Day 9, copy that project:
 
 ```bash
-cp -r day9-tracing-api day10-metrics-basics
-cd day10-metrics-basics
+cp -r day9-tracing-api day10-metrics-api
+cd day10-metrics-api
 ```
 
 If starting fresh:
 
 ```bash
-mkdir day10-metrics-basics
-cd day10-metrics-basics
+mkdir day10-metrics-api
+cd day10-metrics-api
 npm init -y
 ```
 

@@ -1,13 +1,20 @@
-# Day 11: Logs API Demo
+# Day 11 - Logs API Example
 
-An Express API demonstrating the **Logs API** (structured logging with trace correlation) alongside traces and metrics from previous days.
+This example demonstrates basic structured logging using OpenTelemetry, building on the tracing and metrics examples from Days 9 & 10.
 
-## What's different from Day 10?
+## What this example shows
 
-- **Added structured logging** (with trace correlation)
-- **Log-trace correlation** (logs include trace and span IDs automatically)
-- **Structured log attributes** (key-value pairs instead of plain text)
-- **Traces and metrics still work** (from Days 9 & 10)
+- **Simple structured logging** with automatic trace correlation
+- **Basic logging patterns** for beginners
+- **Integration** of logs with existing tracing and metrics code
+
+## Logs we create
+
+1. **Order started** - When processing begins (INFO level)
+2. **Order completed** - When order succeeds (INFO level)
+3. **Order failed** - When any step fails (ERROR level)
+
+All logs automatically include `traceId` and `spanId` for correlation.
 
 ## Quick Start
 
@@ -20,102 +27,82 @@ An Express API demonstrating the **Logs API** (structured logging with trace cor
    ```bash
    docker run -d --name jaeger \
      -p 16686:16686 \
-     -p 4317:4317 \
      -p 4318:4318 \
      jaegertracing/all-in-one:latest
    ```
 
-3. **Run the app:**
+3. **Run the application:**
    ```bash
    node --require ./instrumentation.js app.js
    ```
 
 4. **Send test requests:**
    ```bash
+   # Send 10 requests (some will succeed, some will fail)
    for i in {1..10}; do
      curl -X POST http://localhost:3000/orders \
        -H "Content-Type: application/json" \
-       -d '{
-         "userId": "user_'$i'",
-         "items": [{"sku": "WIDGET-1", "quantity": 2}],
-         "total": '$((50 + RANDOM % 150))',
-         "paymentMethod": "credit_card"
-       }'
+       -d '{"userId":"user'$i'","items":[{"sku":"WIDGET-'$i'","quantity":1}],"total":99,"paymentMethod":"credit_card"}'
      echo ""
-     sleep 0.5
+     sleep 1
    done
    ```
 
-5. **View results:**
-   - **Traces:** http://localhost:16686 (Jaeger UI)
-   - **Metrics:** Use the optional Prometheus + Grafana setup below
-   - **Logs:** Check your console (structured logs with trace correlation)
+5. **View traces in Jaeger:**
+   - Open http://localhost:16686
+   - Select "order-service" 
+   - Click "Find Traces"
 
-## Optional: Prometheus + Grafana
+## What you'll see
 
-For learning purposes, you can visualize metrics using the traditional open-source stack:
+- **Traces**: Individual request flows in Jaeger
+- **Metrics**: Counters increment as orders are processed (from Day 10)
+- **Logs**: Structured log messages with automatic trace correlation (NEW!)
 
-```bash
-docker-compose up -d
-```
+## Example Log Output
 
-This will start:
-- **Jaeger** (traces): http://localhost:16686  
-- **Prometheus** (metrics): http://localhost:9090
-- **Grafana** (dashboards): http://localhost:3001 (admin/admin)
-
-**For production:** Consider using **Dash0** or another OpenTelemetry-native backend that can receive OTLP logs, metrics, and traces directly without additional setup. This tutorial's OTLP export will work with any OTEL-compatible backend.
-
-## What You'll Learn
-
-- Creating structured logs with `logger.emit()`
-- Correlating logs with traces (automatic trace and span IDs)
-- Adding structured attributes to logs (key-value pairs)
-- How logs, traces, and metrics work together
-- Viewing correlated logs and traces in observability backends
-
-See the full tutorial: [Day 11 - Logs API](../../week2/day11.md)
-
-## Key Logging Concepts
-
-### Structured Logging
-Instead of plain text logs:
-```
-"Order processing started for user_123"
-```
-
-Use structured logs with attributes:
-```javascript
-logger.emit({
-  severityText: "INFO",
-  body: "Order processing started",
-  attributes: {
-    "user.id": "user_123",
-    "order.item_count": 2,
-    "order.subtotal": 99.99
-  }
-});
-```
-
-### Automatic Trace Correlation
-When you emit logs inside a span, OpenTelemetry automatically adds:
-- `trace_id` - Links to the trace
-- `span_id` - Links to the specific span
-- This lets you jump from logs to traces and vice versa
-
-### Log Levels
-Use appropriate severity levels:
-- `INFO` - Normal operations
-- `WARN` - Something unusual but not an error
-- `ERROR` - Actual errors and failures
-- `DEBUG` - Detailed debugging information
-
-## Update package.json name:
-
+**Order Started:**
 ```json
 {
-  "name": "day11-logs-api",
-  "version": "1.0.0",
-  "description": "OpenTelemetry Logs API demo"
+  "severityText": "INFO",
+  "body": "Order processing started",
+  "traceId": "abc123...",
+  "spanId": "def456...",
+  "attributes": {
+    "user.id": "user1",
+    "order.item_count": 1
+  }
 }
 ```
+
+**Order Failed:**
+```json
+{
+  "severityText": "ERROR",
+  "body": "Order processing failed",
+  "traceId": "abc123...",
+  "spanId": "def456...",
+  "attributes": {
+    "user.id": "user1",
+    "error.message": "Payment declined: insufficient funds"
+  }
+}
+```
+
+## Key Learning Points
+
+- **Structured logs** are machine-readable and searchable
+- **Automatic correlation** links logs to traces via traceId/spanId
+- **Severity levels** help categorize log importance (INFO vs ERROR)
+- **Attributes** provide structured context for filtering and analysis
+- **Complete observability** = traces + metrics + logs working together
+
+## Files
+
+- `app.js` - Express app with tracing (Day 9) + metrics (Day 10) + logs (Day 11)
+- `instrumentation.js` - OpenTelemetry configuration for traces, metrics, and logs
+- `package.json` - Dependencies
+
+## Next Steps
+
+This example prepares you for Day 12 where we'll learn about context propagation and how trace context flows through your application.

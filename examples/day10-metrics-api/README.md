@@ -1,12 +1,18 @@
-# Day 10: Metrics API Demo
+# Day 10 - Metrics API Example
 
-An Express API demonstrating the **Metrics API** (counters, histograms, UpDownCounters) alongside traces from Day 9.
+This example demonstrates basic metrics using OpenTelemetry, building on the tracing example from Day 9.
 
-## What's different from Day 9?
+## What this example shows
 
-- **Added metrics** (counters, histograms, UpDownCounters)
-- **Optional Prometheus + Grafana** (for real dashboards)
-- **Traces still work** (sent to Jaeger as in Day 9)
+- **Simple counters** that track order processing
+- **Basic metrics patterns** for beginners
+- **Integration** of metrics with existing tracing code
+
+## Metrics we track
+
+1. `orders_processed_total` - Total orders (success + failed)
+2. `orders_success_total` - Successful orders only
+3. `orders_failed_total` - Failed orders only
 
 ## Quick Start
 
@@ -19,68 +25,51 @@ An Express API demonstrating the **Metrics API** (counters, histograms, UpDownCo
    ```bash
    docker run -d --name jaeger \
      -p 16686:16686 \
-     -p 4317:4317 \
      -p 4318:4318 \
      jaegertracing/all-in-one:latest
    ```
 
-3. **Run the app:**
+3. **Run the application:**
    ```bash
    node --require ./instrumentation.js app.js
    ```
 
 4. **Send test requests:**
    ```bash
-   for i in {1..20}; do
+   # Send 10 requests (some will succeed, some will fail)
+   for i in {1..10}; do
      curl -X POST http://localhost:3000/orders \
        -H "Content-Type: application/json" \
-       -d '{
-         "userId": "user_'$i'",
-         "items": [{"sku": "WIDGET-1", "quantity": 2}],
-         "total": '$((50 + RANDOM % 150))',
-         "paymentMethod": "credit_card"
-       }'
+       -d '{"userId":"user'$i'","items":[{"sku":"WIDGET-'$i'","quantity":1}],"total":99,"paymentMethod":"credit_card"}'
      echo ""
-     sleep 0.5
+     sleep 1
    done
    ```
 
-5. **View results:**
-   - **Traces:** http://localhost:16686 (Jaeger UI)
-   - **Metrics:** Use the optional Prometheus + Grafana setup below
+5. **View traces in Jaeger:**
+   - Open http://localhost:16686
+   - Select "order-service" 
+   - Click "Find Traces"
 
-## Optional: Prometheus + Grafana
+## What you'll see
 
-For learning purposes, you can visualize metrics using the traditional open-source stack:
+- **Traces**: Individual request flows in Jaeger
+- **Metrics**: Counters increment as orders are processed
+- **Pattern**: ~80% success, ~20% failure (due to simulated payment failures)
 
-```bash
-docker-compose up -d
-```
+## Key Learning Points
 
-This will start:
-- **Jaeger** (traces): http://localhost:16686  
-- **Prometheus** (metrics): http://localhost:9090
-- **Grafana OSS** (dashboards): http://localhost:3001 (admin/admin)
+- Metrics show **patterns** across many requests
+- Traces show **details** of individual requests  
+- Simple counters are perfect for beginners
+- Metrics and traces work together for complete observability
 
-**For production:** Consider using **Dash0** or another OpenTelemetry-native backend that can receive OTLP metrics directly without additional setup. This tutorial's OTLP export will work with any OTEL-compatible backend.
+## Files
 
-## What You'll Learn
+- `app.js` - Express app with tracing (Day 9) + metrics (Day 10)
+- `instrumentation.js` - OpenTelemetry configuration for traces and metrics
+- `package.json` - Dependencies
 
-- Creating counters with `meter.createCounter()`
-- Creating histograms with `meter.createHistogram()`
-- Creating UpDownCounters with `meter.createUpDownCounter()`
-- How traces and metrics work together
-- Viewing metrics with Prometheus (optional setup)
+## Next Steps
 
-See the full tutorial: [Day 10 - Metrics API](../../week2/day10.md)
-```
-
-## Update package.json name:
-
-```json
-{
-  "name": "day10-metrics-api",
-  "version": "1.0.0",
-  "description": "OpenTelemetry Metrics API demo"
-}
-```
+This example prepares you for Day 11 where we'll add structured logging to complete the observability picture.

@@ -1,6 +1,6 @@
 // app.js
 const express = require("express");
-const { trace, context, SpanStatusCode } = require("@opentelemetry/api");
+const { trace, context } = require("@opentelemetry/api");
 
 const app = express();
 app.use(express.json());
@@ -13,18 +13,18 @@ const tracer = trace.getTracer("context-demo", "1.0.0");
 
 async function automaticPropagationExample() {
   return tracer.startActiveSpan("parent_operation", async (parentSpan) => {
-    parentSpan.setAttribute("example", "automatic_propagation");
+    parentSpan.setAttribute("example", "automatic");
     
     // This works - async/await preserves context
-    await tracer.startActiveSpan("child_async", async (childSpan) => {
-      childSpan.setAttribute("propagation", "automatic");
+    await tracer.startActiveSpan("child_operation", async (childSpan) => {
+      childSpan.setAttribute("type", "child");
       
-      // Simulate async work
+      // Simulate some work
       await new Promise(resolve => setTimeout(resolve, 100));
       
       // This also works - nested spans
-      await tracer.startActiveSpan("grandchild", async (grandchildSpan) => {
-        grandchildSpan.setAttribute("level", "grandchild");
+      await tracer.startActiveSpan("grandchild_operation", async (grandchildSpan) => {
+        grandchildSpan.setAttribute("type", "grandchild");
         await new Promise(resolve => setTimeout(resolve, 50));
         grandchildSpan.end();
       });
@@ -43,33 +43,32 @@ async function automaticPropagationExample() {
 
 function brokenPropagationExample() {
   return tracer.startActiveSpan("parent_operation", (parentSpan) => {
-    parentSpan.setAttribute("example", "broken_propagation");
+    parentSpan.setAttribute("example", "broken");
     
     // This breaks - setTimeout loses context
     setTimeout(() => {
       tracer.startActiveSpan("orphaned_child", (childSpan) => {
-        childSpan.setAttribute("propagation", "broken");
-        childSpan.setAttribute("problem", "no_parent_context");
+        childSpan.setAttribute("problem", "no_parent");
         
         // This span will NOT be a child of parent_operation
-        // It will start a new trace!
+        // It will start a completely new trace!
         
         childSpan.end();
       });
     }, 100);
     
     parentSpan.end();
-    return "Broken propagation example started";
+    return "Broken propagation example started (check Jaeger in 1 second)";
   });
 }
 
 // =========================
-// EXAMPLE 3: Manual propagation (fixing the break)
+// EXAMPLE 3: Fixed propagation (manual solution)
 // =========================
 
-function manualPropagationExample() {
+function fixedPropagationExample() {
   return tracer.startActiveSpan("parent_operation", (parentSpan) => {
-    parentSpan.setAttribute("example", "manual_propagation");
+    parentSpan.setAttribute("example", "fixed");
     
     // Capture the current context
     const currentContext = context.active();
@@ -78,7 +77,6 @@ function manualPropagationExample() {
       // Restore the context in the callback
       context.with(currentContext, () => {
         tracer.startActiveSpan("fixed_child", (childSpan) => {
-          childSpan.setAttribute("propagation", "manual");
           childSpan.setAttribute("solution", "context.with");
           
           // Now this span IS a child of parent_operation!
@@ -89,48 +87,7 @@ function manualPropagationExample() {
     }, 100);
     
     parentSpan.end();
-    return "Manual propagation example started";
-  });
-}
-
-// =========================
-// EXAMPLE 4: Cross-service propagation simulation
-// =========================
-
-function simulateCrossServiceCall() {
-  return tracer.startActiveSpan("service_a_operation", async (span) => {
-    span.setAttribute("service", "service_a");
-    
-    // Simulate extracting trace context for HTTP headers
-    const headers = {};
-    
-    // In real HTTP calls, auto-instrumentation does this automatically
-    // But here's how you'd do it manually:
-    trace.setSpanContext(context.active(), span.spanContext());
-    
-    // Simulate HTTP call to another service
-    const response = await simulateServiceBCall(headers);
-    
-    span.setAttribute("response", response);
-    span.end();
-    
-    return response;
-  });
-}
-
-async function simulateServiceBCall(headers) {
-  // In a real scenario, this would be a different service
-  // Auto-instrumentation would extract context from HTTP headers
-  
-  return tracer.startActiveSpan("service_b_operation", async (span) => {
-    span.setAttribute("service", "service_b");
-    span.setAttribute("received_headers", Object.keys(headers).length);
-    
-    // Simulate some work
-    await new Promise(resolve => setTimeout(resolve, 200));
-    
-    span.end();
-    return "Service B processed request";
+    return "Fixed propagation example started (check Jaeger in 1 second)";
   });
 }
 
@@ -141,7 +98,10 @@ async function simulateServiceBCall(headers) {
 app.get("/automatic", async (req, res) => {
   try {
     const result = await automaticPropagationExample();
-    res.json({ result, message: "Check Jaeger - spans should be properly nested" });
+    res.json({ 
+      result, 
+      message: "Check Jaeger - spans should be properly nested like a family tree" 
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -152,31 +112,19 @@ app.get("/broken", async (req, res) => {
     const result = brokenPropagationExample();
     res.json({ 
       result, 
-      message: "Check Jaeger - orphaned_child will be in a separate trace!" 
+      message: "Check Jaeger - orphaned_child will be in a separate trace (not connected to parent)!" 
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-app.get("/manual", async (req, res) => {
+app.get("/fixed", async (req, res) => {
   try {
-    const result = manualPropagationExample();
+    const result = fixedPropagationExample();
     res.json({ 
       result, 
       message: "Check Jaeger - fixed_child should be properly nested under parent" 
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.get("/cross-service", async (req, res) => {
-  try {
-    const result = await simulateCrossServiceCall();
-    res.json({ 
-      result, 
-      message: "Check Jaeger - service_b_operation should be child of service_a_operation" 
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -192,8 +140,8 @@ const PORT = 3000;
 app.listen(PORT, () => {
   console.log(`Context propagation demo listening on port ${PORT}`);
   console.log("\nTry these endpoints:");
-  console.log("- GET /automatic (context works automatically)");
-  console.log("- GET /broken (context gets lost)");
-  console.log("- GET /manual (context manually fixed)");
-  console.log("- GET /cross-service (simulated service-to-service)");
+  console.log("- GET /automatic (context works automatically - the normal case)");
+  console.log("- GET /broken (context gets lost - shows the problem)");
+  console.log("- GET /fixed (context manually restored - shows the solution)");
+  console.log("\nOpen Jaeger at http://localhost:16686 to see the differences!");
 });
