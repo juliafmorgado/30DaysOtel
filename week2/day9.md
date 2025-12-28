@@ -17,19 +17,20 @@ Before we dive in, let's connect today's hands-on work to what we learned last w
 
 ## What we're building today: A simple order API
 
-We're going to build a minimal Express API with one endpoint: `POST /orders`. This endpoint will:
-1. Validate the order
-2. Check inventory
-3. Calculate shipping
-4. Process payment
-5. Save the order
+We're going to build a realistic but simple Express API that processes orders. This will give us a perfect example to practice manual instrumentation on real business logic.
 
-Then we'll add manual instrumentation to see exactly what's happening at each step.
+**Our order processing flow:**
+1. **Validate the order** - Check that required fields are present
+2. **Check inventory** - Make sure items are in stock
+3. **Calculate shipping** - Determine shipping costs
+4. **Process payment** - Handle payment authorization
+5. **Save the order** - Store the completed order
 
-**By the end, we'll have:**
-- A working Node.js API with OpenTelemetry
-- Manual spans showing our business logic
-- A trace we can view in Jaeger
+**Why this example is perfect for learning:**
+- **Realistic business logic** - This mirrors real e-commerce systems
+- **Multiple steps** - We can create spans for each step to see parent-child relationships
+- **Error scenarios** - We can simulate failures to see error handling
+- **Timing variations** - Different steps take different amounts of time, making traces interesting
 
 ---
 ## Step 1: Set up the project
@@ -60,6 +61,8 @@ otel-tracing/
 
 ## Step 2: Configure OpenTelemetry (instrumentation.js)
 
+Before we write any application code, we need to set up OpenTelemetry. This configuration tells the SDK how to process and export our telemetry data.
+
 Create `instrumentation.js`:
 
 ```javascript
@@ -85,10 +88,32 @@ sdk.start();
 console.log("OpenTelemetry initialized");
 ```
 
-**What this does:**
-- Configures the SDK to send traces to Jaeger (running on localhost)
-- Enables auto-instrumentation for Express and other libraries
-- Sets the service name to "order-service" using semantic conventions
+**Let's break down what each part does:**
+
+**Resource configuration:**
+```javascript
+resource: new Resource({
+  [ATTR_SERVICE_NAME]: "order-service",
+  [ATTR_SERVICE_VERSION]: "1.0.0",
+})
+```
+This tells OpenTelemetry "who" is creating the telemetry data. Every span will automatically include these attributes, making it easy to filter traces by service and version in Jaeger.
+
+**Trace exporter:**
+```javascript
+traceExporter: new OTLPTraceExporter({
+  url: "http://localhost:4318/v1/traces",
+})
+```
+This tells OpenTelemetry "where" to send trace data. OTLP (OpenTelemetry Protocol) is the standard format, and Jaeger accepts OTLP on port 4318.
+
+**Auto-instrumentation:**
+```javascript
+instrumentations: [getNodeAutoInstrumentations()]
+```
+This automatically creates spans for Express routes, HTTP requests, database calls, and other common operations. We'll add our own manual spans on top of these automatic ones.
+
+**Why we configure this separately:** Remember from Day 8 - this separation means we can change where traces go (Jaeger → Dash0) or how they're processed (100% sampling → 10% sampling) without touching our application code.
 
 ---
 
