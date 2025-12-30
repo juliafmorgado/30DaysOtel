@@ -469,13 +469,13 @@ Too many spans:
 
 **Rule of thumb for manual instrumentation:**
 
-✅ **DO instrument:**
+**DO instrument:**
 - Operations that take meaningful time (>5ms)
 - Business-critical logic (payment processing, order fulfillment)
 - Operations that fail in interesting ways (external API calls)
 - Anything you've had trouble debugging before
 
-❌ **DON'T instrument:**
+**DON'T instrument:**
 - Tiny helper functions (<1ms)
 - Pure data transformations (formatting, parsing)
 - Getters/setters
@@ -484,24 +484,14 @@ Too many spans:
 **Instead of creating a span for trivial operations, just add an attribute to the parent span:**
 
 ```javascript
-// ❌ Don't do this
+// Don't do this
 const span = tracer.startSpan('calculate_item_count');
 const count = items.length;
 span.end();
 
-// ✅ Do this instead
+// Do this instead
 span.setAttribute('order.item_count', items.length);
 ```
-
-**Key insight:** We'll learn more about this next week but the API (what we use in our code) is separate from the SDK (what processes the data). This separation means:
-
-1. **We can write instrumentation code once:** Our manual instrumentation uses the OpenTelemetry API, which is stable and language-agnostic.
-
-2. **We can swap backends without changing our code:** Want to switch from Jaeger to Tempo? Just change the exporter configuration. Our application code doesn't change.
-
-3. **We can use different exporters in different environments:** Send traces to a local Jaeger instance in development, and to a production backend in production. Same application code.
-
-This is why OpenTelemetry won the observability standards war. It separates the concerns: **how we create telemetry** (API) vs **where it goes** (SDK + exporters).
 
 ## What I'm taking into Day 7
 

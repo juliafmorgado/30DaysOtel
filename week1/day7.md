@@ -6,7 +6,7 @@ We'll revisit the key concepts, add important details we glossed over, and show 
 
 By the end of today, we'll have:
 - A clear mental map of Days 1-6
-- Understanding of what you've actually been learning (spoiler: the APIs!)
+- Understanding of what we've actually been learning (spoiler: the APIs!)
 - The missing pieces that connect everything
 - Confidence in the foundations
 - Readiness for Week 2 (where we get hands-on)
@@ -39,13 +39,12 @@ New way (microservices):
 
 ### [Day 2](https://github.com/juliafmorgado/30DaysOtel/blob/main/week1/day2.md): What is OpenTelemetry?
 
-Before OpenTelemetry, every observability vendor had their own proprietary format and SDK. We'd write instrumentation code that locked us into one vendor. OpenTelemetry solved this by creating a vendor-neutral standard.
+Before OpenTelemetry, every observability vendor had their own proprietary format and SDK. We'd write instrumentation code that locked us into one vendor. OpenTelemetry solved this by creating standardized APIs that enable vendor flexibility.
 
 **What we learned:**
-- OpenTelemetry is a set of APIs, SDKs, and tools for collecting telemetry (traces, metrics, logs)
-- It's vendor-neutral: write instrumentation once, send data anywhere
-- It standardizes how telemetry is created, formatted, and transmitted
-- Major cloud providers and observability vendors have adopted it as the standard
+- OpenTelemetry standardizes how we create and collect telemetry
+- It enables vendor flexibility through API/SDK separation
+- Major vendors have adopted it as the industry standard
 
 **The mental model we built:**
 ```
@@ -54,9 +53,9 @@ Before OpenTelemetry:
 - Want to switch vendors? Rewrite all instrumentation
 
 With OpenTelemetry:
-- OpenTelemetry SDK → Any backend
+- OpenTelemetry API → Multiple SDK implementations possible
 - Write instrumentation once
-- Change backends by changing configuration, not code
+- Use different SDK implementations without changing code
 - Same standards across languages (Go, Node.js, Python, Java, etc.)
 ```
 
@@ -93,7 +92,6 @@ Three ways to observe this:
 - Logs: "Query timeout: connection pool exhausted"
 ```
 
-**What we were actually learning:** The data model that OpenTelemetry's APIs work with—traces, metrics, and logs aren't just concepts, they're the three types of telemetry the APIs create.
 
 ### [Day 4](https://github.com/juliafmorgado/30DaysOtel/blob/main/week1/day4.md): Spans=the building blocks
 
@@ -115,11 +113,9 @@ Resources = who performed this step
 Parent-child = how steps connect
 ```
 
-**What we were actually learning:** The **Tracing API's data model**. When you call `span.setAttribute()` or create a span, you're working with these concepts.
-
 ### [Day 5](https://github.com/juliafmorgado/30DaysOtel/blob/main/week1/day5.md): Semantic conventions=the shared language
 
-Attributes need standard names, or traces from different services become incompatible islands.
+Attributes need standard names otherwise telemetry from different services becomes incompatible and can't be analyzed together.
 
 **What we learned:**
 - Why `http.method` instead of `request_method` or just `method`
@@ -140,18 +136,14 @@ With conventions:
   → One query works everywhere
 ```
 
-**What we were actually learning:** How to use the **OpenTelemetry APIs correctly**. Semantic conventions are the standard way to call `span.setAttribute()`, `counter.add()`, and other API functions with the right names.
-
 ### [Day 6](https://github.com/juliafmorgado/30DaysOtel/blob/main/week1/day6.md): Instrumentation=how telemetry gets created
 
 Telemetry data doesn't appear magically. It's created by instrumentation code, either automatically (wrapping libraries) or manually (code we write).
 
 **What we learned:**
-- Auto-instrumentation wraps libraries (Express, PostgreSQL, etc.) to create telemetry automatically
-- Manual instrumentation lets us create telemetry for business logic
-- How both types work together in the same trace
-- When to use each (infrastructure = auto, business logic = manual)
-- That both use the same OpenTelemetry APIs
+- Auto-instrumentation handles infrastructure (HTTP, databases) automatically
+- Manual instrumentation handles business logic we write
+- Both work together in the same trace using the same APIs
 
 **The mental model we built:**
 ```
@@ -163,8 +155,6 @@ Both call the same API functions:
 - Auto: Libraries call tracer.startSpan() for you
 - Manual: You call tracer.startSpan() yourself
 ```
-
-**What we were actually learning:** **WHO calls the OpenTelemetry APIs**. Auto-instrumentation = libraries call it for you. Manual instrumentation = you call it yourself. But both are using the same API.
 
 ## The complete picture: how it all connects
 
@@ -310,11 +300,11 @@ db.client.operation.duration{operation="SELECT"}: avg 980ms
 
 All three signals working together to give us complete visibility.
 
-## What you've actually been learning: The OpenTelemetry APIs
+## What we've actually been learning: The OpenTelemetry APIs
 
 Here's something important that might not have been obvious:
 
-**You haven't been learning random concepts. You've been learning ABOUT the OpenTelemetry APIs all week.**
+**We've been learning ABOUT the OpenTelemetry APIs all week.**
 
 Let's make this explicit:
 
@@ -345,7 +335,7 @@ The concepts from Day 4 (span name, attributes, parent-child relationships) are 
 
 ### Day 5 = How to use ALL the APIs correctly
 
-Semantic conventions aren't a separate thing. They're the **standardized way to use the OpenTelemetry APIs**:
+Semantic conventions are the **standardized way to use the OpenTelemetry APIs**:
 
 ```javascript
 // Without semantic conventions:
@@ -357,17 +347,17 @@ span.setAttribute('http.method', 'POST');      // ✅ Standard
 counter.add(1, { 'payment.method': 'cc' });   // ✅ Standard
 ```
 
-Same thing applies to metrics and logs—semantic conventions tell you the right attribute names to use.
+Same thing applies to metrics and logs. Semantic conventions tell us the right attribute names to use.
 
 ### Day 6 = WHO calls the APIs
 
-Instrumentation isn't a different concept. It's about **who's calling the API**:
+Instrumentation is about **who's calling the API**:
 
 ```javascript
-// Auto-instrumentation = library calls the API for you
+// Auto-instrumentation = library calls the API for us
 // (Express library creates spans automatically using the Tracing API)
 
-// Manual instrumentation = you call the API yourself
+// Manual instrumentation = we call the API ourselves
 const span = tracer.startSpan('my_business_logic');
 span.setAttribute('order.id', orderId);
 span.end();
@@ -378,50 +368,19 @@ counter.add(1, { 'payment.method': 'credit_card' });
 
 **Both use the same OpenTelemetry APIs.** The difference is who writes the code that calls it.
 
-## The realization: You already know what the APIs do
-
-Week 1 wasn't just theory. It was learning about the APIs:
-
-- **Day 3:** What the three APIs are (Tracing, Metrics, Logs)
-- **Day 4:** What data the Tracing API works with (spans, attributes)
-- **Day 5:** How to use all the APIs correctly (semantic conventions)
-- **Day 6:** Who calls the APIs (auto-instrumentation vs manual)
-
-**Week 2 is when we'll practice calling these APIs yourself.** But the APIs aren't new, we've been learning what they do all week.
-
-## The mental model: APIs vs Instrumentation
-
-Here's the key mental model to carry forward:
-
-```
-OpenTelemetry APIs (what you call in code):
-├─ Tracing API: create spans, add attributes
-├─ Metrics API: create counters, histograms, gauges
-└─ Logs API: emit structured logs
-
-Who calls these APIs:
-├─ Auto-instrumentation (libraries call it automatically)
-│  ├─ Express → creates HTTP server spans
-│  ├─ PostgreSQL client → creates database spans
-│  └─ HTTP client → creates outbound request spans
-│
-└─ Manual instrumentation (you call it explicitly)
-   ├─ Business logic spans
-   ├─ Custom metrics
-   └─ Structured logs with business context
-```
-
-**The APIs are the same in both cases.** Auto-instrumentation is just pre-written code that calls the APIs for common operations.
-
 Think of it like security cameras:
 - **Auto-instrumentation** = cameras in hallways, entrances, parking lots (infrastructure everyone needs)
 - **Manual instrumentation** = cameras in specific rooms for our unique needs (business logic)
 - **The APIs** = the camera system itself (same for both types of cameras)
 
+## The realization: We already know what the APIs do
+
+**Week 2 is when we'll practice calling these APIs yourself.**
+
 ## What's next
 
-**Day 8** is about understanding why the API and SDK are separate. This separation is what makes OpenTelemetry vendor-neutral so we can swap the SDK implementation without changing our instrumentation code.
+**Day 8** is about understanding why the API and SDK are separate. This separation enables vendor flexibility and implementation choice so we can use different SDK implementations without changing our instrumentation code.
 
 If you want, test your knowledge with this [quiz](https://github.com/juliafmorgado/30DaysOtel/blob/main/week1/knowledge-check.md).
 
-Let's build something! 🚀
+Let's build something!

@@ -3,10 +3,10 @@
 Test your understanding of the concepts from Week 1 (Days 1-6). This quiz covers observability basics, traces, metrics, logs, spans, semantic conventions, and instrumentation.
 
 **Scoring Guide:**
-- 0-10 correct: Review Week 1 materials
-- 11-15 correct: Good grasp, but review weak areas
-- 16-20 correct: Solid understanding, ready for Week 2
-- 21+ correct: Excellent! You've mastered Week 1
+- 0-8 correct: Review Week 1 materials
+- 9-13 correct: Good grasp, but review weak areas
+- 14-18 correct: Solid understanding, ready for Week 2
+- 19-22 correct: Excellent! You've mastered Week 1
 
 ---
 
@@ -601,108 +601,6 @@ This gives you quick wins (auto-instrumentation) before investing time in manual
 
 ---
 
-### Question 23 (Bonus: Code Reading)
-**What's wrong with this instrumentation code?**
-
-```python
-span = tracer.start_span('fulfill_order')
-span.set_attribute('order.id', order_id)
-
-try:
-    fulfill_order(order_id)
-except Exception as e:
-    print(f'Error: {e}')
-
-span.end()
-```
-
-A) Nothing, it's correct  
-B) Should use `start_as_current_span` instead  
-C) `span.end()` should be inside the try block  
-D) Missing `span.record_exception(e)` in the except block  
-
-<details>
-<summary>Show answer</summary>
-
-**Answer: D** (and arguably B, but D is more critical)
-
-**Issues:**
-1. **No error recording:** When an error occurs, you should call `span.record_exception(e)` to attach the error to the span.
-2. **No span status:** You should set `span.set_status(Status(StatusCode.ERROR))` on failure.
-
-**Better version:**
-```python
-with tracer.start_as_current_span('fulfill_order') as span:
-    span.set_attribute('order.id', order_id)
-    try:
-        fulfill_order(order_id)
-        span.set_status(Status(StatusCode.OK))
-    except Exception as e:
-        span.record_exception(e)  # ← Missing in original
-        span.set_status(Status(StatusCode.ERROR))
-        raise
-```
-
-Using `start_as_current_span` with a context manager is cleaner.
-
-</details>
-
----
-
-### Question 24 (Bonus: Architecture)
-**A trace breaks between Service X and Service Y. Service X shows the outbound HTTP call, but Service Y doesn't show an incoming request span. What's the most likely cause?**
-
-A) Service Y is down  
-B) Network latency  
-C) Sampling rate is too low  
-D) Service Y doesn't have OpenTelemetry configured  
-
-<details>
-<summary>Show answer</summary>
-
-**Answer: D**
-
-If Service Y isn't instrumented (no OpenTelemetry SDK running), it won't:
-- Extract the trace context from headers
-- Create a span for the incoming request
-- Continue the trace
-
-The trace "ends" at Service X's outbound call.
-
-**Other scenarios:**
-- Service Y has instrumentation but doesn't support the W3C Trace Context format
-- Service Y's HTTP framework isn't supported by auto-instrumentation
-
-</details>
-
----
-
-### Question 25 (Bonus: Real-World)
-**Your team wants to add observability to a 30-service system. What's the best approach?**
-
-A) Manually instrument every service before deploying  
-B) Wait until you have full manual instrumentation everywhere  
-C) Deploy observability to all services at once  
-D) Start with auto-instrumentation on the most critical 3-5 services, then expand  
-
-<details>
-<summary>Show answer</summary>
-
-**Answer: D**
-
-**Pragmatic approach:**
-1. **Start small:** Pick 3-5 high-traffic or critical services
-2. **Enable auto-instrumentation:** Get value quickly with minimal effort
-3. **Add manual instrumentation:** Fill gaps in business logic as needed
-4. **Expand gradually:** Roll out to more services as you learn
-5. **Iterate:** Improve instrumentation based on what you learn from traces
-
-Trying to instrument everything perfectly before deploying leads to analysis paralysis. Ship something, learn, iterate.
-
-</details>
-
----
-
 ## Answer Key
 
 | Question | Answer | Topic |
@@ -729,18 +627,15 @@ Trying to instrument everything perfectly before deploying leads to analysis par
 | 20 | D | Unexplained time discovery |
 | 21 | D | Querying with conventions |
 | 22 | C | Setup order |
-| 23 | D | Error handling in spans |
-| 24 | D | Broken trace propagation |
-| 25 | D | Rollout strategy |
 
 ---
 
 ## How did you do?
 
-- **0-10 correct:** Review Week 1 materials, especially Days 4-6
-- **11-15 correct:** Good foundation, but revisit semantic conventions and instrumentation
-- **16-20 correct:** Solid understanding! Ready for Week 2
-- **21-25 correct:** Excellent! You've mastered Week 1 concepts
+- **0-8 correct:** Review Week 1 materials, especially Days 4-6
+- **9-13 correct:** Good foundation, but revisit semantic conventions and instrumentation
+- **14-18 correct:** Solid understanding! Ready for Week 2
+- **19-22 correct:** Excellent! You've mastered Week 1 concepts
 
 **Next step:** Move on to Week 2 (OpenTelemetry APIs & SDK) or review any topics where you struggled.
 

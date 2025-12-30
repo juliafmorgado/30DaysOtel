@@ -103,7 +103,7 @@ This ability to trace cause and effect across distributed systems is what makes 
 
 ## Where OpenTelemetry fits into this picture
 
-OpenTelemetry (OTel) is an open-source project hosted by the [CNCF](https://www.cncf.io/) that solves one problem: how to generate and connect telemetry in a vendor-neutral way
+OpenTelemetry (OTel) is an open-source project hosted by the [CNCF](https://www.cncf.io/) that solves one problem: how to generate and connect telemetry using standardized, vendor-neutral APIs
 
 Instead, it standardizes the *inputs* to those tools.
 
