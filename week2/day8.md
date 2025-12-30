@@ -275,15 +275,20 @@ Let's see it work end-to-end.
 
 **Install:**
 ```bash
-npm install express @opentelemetry/api @opentelemetry/sdk-node @opentelemetry/sdk-trace-node
+npm install express @opentelemetry/api @opentelemetry/sdk-node @opentelemetry/sdk-trace-node @opentelemetry/resources @opentelemetry/semantic-conventions
 ```
 
 **Create instrumentation.js:**
 ```javascript
 const { NodeSDK } = require('@opentelemetry/sdk-node');
 const { ConsoleSpanExporter } = require('@opentelemetry/sdk-trace-node');
+const { resourceFromAttributes } = require('@opentelemetry/resources');
+const { ATTR_SERVICE_NAME } = require('@opentelemetry/semantic-conventions');
 
 const sdk = new NodeSDK({
+  resource: resourceFromAttributes({
+    [ATTR_SERVICE_NAME]: 'demo-service',
+  }),
   traceExporter: new ConsoleSpanExporter(),
   instrumentations: [],
 });
