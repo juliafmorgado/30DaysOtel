@@ -1,0 +1,39 @@
+# Filelog Receiver Configuration
+# This reads log files and parses them into structured logs
+
+receivers:
+  filelog:
+    include: [/var/log/app/*.log]
+    exclude: [/var/log/app/debug.log]
+    operators:
+      # Parse log format: "2024-01-16 10:30:45 INFO User login successful"
+      - type: regex_parser
+        regex: '^(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) (?P<level>\w+) (?P<message>.*)'
+        timestamp:
+          parse_from: attributes.timestamp
+          layout: '%Y-%m-%d %H:%M:%S'
+      
+      # Convert log levels to OpenTelemetry severity
+      - type: severity_parser
+        parse_from: attributes.level
+        mapping:
+          debug: debug
+          info: info
+          warn: warn
+          error: error
+          fatal: fatal
+
+processors:
+  batch:
+    timeout: 1s
+
+exporters:
+  logging:
+    loglevel: info
+
+service:
+  pipelines:
+    logs:
+      receivers: [filelog]
+      processors: [batch]
+      exporters: [logging]

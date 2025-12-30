@@ -1,0 +1,76 @@
+# Multi-Source Receiver Configuration
+# This demonstrates using multiple receivers in one Collector
+
+receivers:
+  # Modern OpenTelemetry applications
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+  
+  # Legacy Prometheus applications
+  prometheus:
+    config:
+      scrape_configs:
+        - job_name: 'legacy-app'
+          scrape_interval: 30s
+          static_configs:
+            - targets: ['legacy-app:8080']
+  
+  # System log files
+  filelog:
+    include: [/var/log/apps/*.log]
+    operators:
+      - type: regex_parser
+        regex: '^(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) (?P<level>\w+) (?P<message>.*)'
+        timestamp:
+          parse_from: attributes.timestamp
+          layout: '%Y-%m-%d %H:%M:%S'
+  
+  # Host system metrics
+  hostmetrics:
+    collection_interval: 60s
+    scrapers:
+      cpu:
+        metrics:
+          system.cpu.utilization:
+            enabled: true
+      memory:
+        metrics:
+          system.memory.utilization:
+            enabled: true
+      disk:
+        metrics:
+          system.disk.io:
+            enabled: true
+
+processors:
+  batch:
+    timeout: 1s
+    send_batch_size: 1024
+
+exporters:
+  logging:
+    loglevel: info
+
+service:
+  pipelines:
+    # Traces only from OTLP (modern apps)
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [logging]
+    
+    # Metrics from multiple sources
+    metrics:
+      receivers: [otlp, prometheus, hostmetrics]
+      processors: [batch]
+      exporters: [logging]
+    
+    # Logs from OTLP and files
+    logs:
+      receivers: [otlp, filelog]
+      processors: [batch]
+      exporters: [logging]
