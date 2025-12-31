@@ -1,6 +1,6 @@
 # Day 10 – Metrics API: Counting What Matters
 
-Yesterday we learned the Tracing API and created spans to follow individual requests through our system. Today we add **basic metrics** so we can answer simple questions like "How many orders have we processed?" and "How many orders are failing?"
+Yesterday we learned the Tracing API and created spans to follow individual requests through our system. Today we add **basic metrics** so we can answer simple questions like "How many greetings have we sent?" and "What's our most popular name?"
 
 > **Working example:** The complete code for this tutorial is available in [`examples/day10-metrics-api/`](../examples/day10-metrics-api/)
 >
@@ -24,28 +24,28 @@ Today's focus: creating our **own simple metrics** using the Metrics API.
 | Traces | Metrics |
 |--------|---------|
 | Individual requests | Many requests combined |
-| "This order took 1200ms" | "We processed 50 orders today" |
-| "Why did this specific order fail?" | "How many orders are failing?" |
+| "Alice's greeting took 105ms" | "We sent 50 greetings today" |
+| "Why did this specific request fail?" | "How many requests are failing?" |
 | Debugging individual problems | Seeing overall patterns |
 
 **Think of it like this:**
-- **Traces** = Individual stories ("John's order failed at payment")
-- **Metrics** = Statistics ("10% of orders are failing")
+- **Traces** = Individual stories ("Alice's greeting was processed successfully")
+- **Metrics** = Statistics ("We've sent 1,000 greetings this hour")
 
 ---
 
 ## The one metric type we'll learn today: Counter
 
-For beginners, we only need to understand **counters** -> numbers that only go up.
+For beginners, we only need to understand **counters** → numbers that only go up.
 
 ### Counter (counts things that happen)
 
-Counts events that accumulate over time: orders processed, errors that occurred, requests received.
+Counts events that accumulate over time: greetings sent, requests received, errors that occurred.
 
 **Examples:**
-- `orders_processed_total` → How many orders we've handled (starts at 0, goes up)
-- `payment_failures_total` → How many payments failed (starts at 0, goes up)
+- `greetings_sent_total` → How many greetings we've sent (starts at 0, goes up)
 - `requests_received_total` → How many HTTP requests we got (starts at 0, goes up)
+- `popular_names_total` → Count of each name requested (Alice: 5, Bob: 3, etc.)
 
 **Key rule:** Counters only increase. They reset to 0 when your app restarts.
 
@@ -53,12 +53,12 @@ Counts events that accumulate over time: orders processed, errors that occurred,
 
 ## What we're building today
 
-We'll add **simple counting metrics** to the order API from Day 9:
+We'll add **simple counting metrics** to the greeting API from Day 9:
 
 **Metrics we'll track:**
-1. **Counter:** Total orders processed (success + failed)
-2. **Counter:** Total successful orders  
-3. **Counter:** Total failed orders
+1. **Counter:** Total greetings sent
+2. **Counter:** Total requests received  
+3. **Counter:** Popular names (with labels)
 
 That's it! Simple counting to see patterns.
 
@@ -87,6 +87,7 @@ npm init -y
 npm install express \
   @opentelemetry/api \
   @opentelemetry/sdk-node \
+  @opentelemetry/sdk-metrics \
   @opentelemetry/resources \
   @opentelemetry/semantic-conventions \
   @opentelemetry/auto-instrumentations-node \
@@ -98,7 +99,7 @@ npm install express \
 
 ## Step 2: Update instrumentation to include metrics
 
-Let's update `instrumentation.js` to export both traces AND metrics:
+Update `instrumentation.js` to export metrics alongside traces:
 
 ```javascript
 // instrumentation.js
@@ -107,277 +108,148 @@ const { getNodeAutoInstrumentations } = require("@opentelemetry/auto-instrumenta
 const { OTLPTraceExporter } = require("@opentelemetry/exporter-trace-otlp-http");
 const { OTLPMetricExporter } = require("@opentelemetry/exporter-metrics-otlp-http");
 const { PeriodicExportingMetricReader } = require("@opentelemetry/sdk-metrics");
-const { Resource } = require("@opentelemetry/resources");
+const { resourceFromAttributes } = require("@opentelemetry/resources");
 const { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } = require("@opentelemetry/semantic-conventions");
 
 const sdk = new NodeSDK({
-  resource: new Resource({
-    [ATTR_SERVICE_NAME]: "order-service",
+  resource: resourceFromAttributes({
+    [ATTR_SERVICE_NAME]: "greeting-service",
     [ATTR_SERVICE_VERSION]: "1.0.0",
   }),
   
-  // Trace exporter (from Day 9)
+  // Traces (from Day 9)
   traceExporter: new OTLPTraceExporter({
     url: "http://localhost:4318/v1/traces",
   }),
   
-  // Metric exporter (NEW for Day 10)
+  // Metrics (NEW for Day 10)
   metricReader: new PeriodicExportingMetricReader({
     exporter: new OTLPMetricExporter({
       url: "http://localhost:4318/v1/metrics",
     }),
-    exportIntervalMillis: 10000,  // Export metrics every 10 seconds
+    exportIntervalMillis: 30000, // Export every 30 seconds
   }),
   
   instrumentations: [getNodeAutoInstrumentations()],
 });
 
 sdk.start();
-console.log("OpenTelemetry initialized (traces + metrics)");
+console.log("OpenTelemetry initialized with traces and metrics");
 ```
 
 **What's new:**
-- Added metrics export alongside traces
-- Metrics are sent every 10 seconds (not immediately like traces)
+- **OTLPMetricExporter** - Sends metrics to the same OTLP endpoint as traces
+- **metricReader** - Configures how metrics are exported (every 30 seconds by default)
 
 ---
 
-## Step 3: Get a Meter (like we got a Tracer on Day 9)
+## Step 3: Add metrics to the greeting app
 
-Think of it like this:
-- **Tracer** = creates spans (for traces)
-- **Meter** = creates counters (for metrics)
+Update `app.js` to include metrics alongside the tracing from Day 9:
 
 ```javascript
 // app.js
 const express = require('express');
-const { trace, metrics, SpanStatusCode } = require('@opentelemetry/api');
+const { trace, metrics } = require('@opentelemetry/api');
 
 const app = express();
-app.use(express.json());
 
 // Get a tracer (from Day 9)
-const tracer = trace.getTracer('order-service', '1.0.0');
+const tracer = trace.getTracer('greeting-service', '1.0.0');
 
 // Get a meter (NEW for Day 10)
-const meter = metrics.getMeter('order-service', '1.0.0');
+const meter = metrics.getMeter('greeting-service', '1.0.0');
 
-// Next we'll create our counters
-```
+// =========================
+// METRICS (create once, use everywhere)
+// =========================
 
----
-
-## Step 4: Create counters (create once, use everywhere)
-
-Counters are like scoreboards. We create them once when the app starts, then update them as things happen.
-
-```javascript
 // Create counters once at startup
-const ordersTotal = meter.createCounter("orders_processed_total", {
-  description: "Total number of orders processed (success + failed)",
+const greetingsTotal = meter.createCounter("greetings_sent_total", {
+  description: "Total number of greetings sent",
 });
 
-const ordersSuccess = meter.createCounter("orders_success_total", {
-  description: "Total number of successful orders",
+const requestsTotal = meter.createCounter("requests_received_total", {
+  description: "Total number of requests received",
 });
 
-const ordersFailed = meter.createCounter("orders_failed_total", {
-  description: "Total number of failed orders",
+const popularNames = meter.createCounter("popular_names_total", {
+  description: "Count of greetings by name",
 });
 
-// Helper functions (same as Day 9)
-async function validateOrder(orderData) {
-  await new Promise(resolve => setTimeout(resolve, 50));
+// =========================
+// GREETING ENDPOINT (building on Day 9)
+// =========================
+
+app.get('/hello/:name', (req, res) => {
+  // Count this request
+  requestsTotal.add(1);
   
-  if (!orderData.items || orderData.items.length === 0) {
-    throw new Error('Order must contain items');
-  }
-  if (!orderData.userId) {
-    throw new Error('Order must have a userId');
-  }
-}
-
-async function checkInventory(items) {
-  await new Promise(resolve => setTimeout(resolve, 200));
-  return { allAvailable: true, unavailableItems: [] };
-}
-
-async function calculateShipping(orderData) {
-  await new Promise(resolve => setTimeout(resolve, 100));
-  return 12.99;
-}
-
-async function processPayment(amount, method) {
-  await new Promise(resolve => setTimeout(resolve, 500));
-  
-  // 20% chance of failure for demo purposes
-  if (Math.random() < 0.2) {
-    throw new Error('Payment declined: insufficient funds');
-  }
-  
-  return {
-    authId: 'auth_' + Math.random().toString(36).substring(2, 11),
-    status: 'approved'
-  };
-}
-
-async function saveOrder(orderData) {
-  await new Promise(resolve => setTimeout(resolve, 150));
-  return 'ord_' + Math.random().toString(36).substring(2, 11);
-}
-```
-
-**What's happening here:**
-- `meter.createCounter()` creates a counter we can add numbers to
-- `description` explains what the counter measures
-- We create them once, then use them throughout our app
-
----
-
-## Step 5: Add counting to our order endpoint
-
-Now we'll update our `/orders` endpoint to count things as they happen:
-
-```javascript
-// Our instrumented endpoint (building on Day 9)
-app.post('/orders', async (req, res) => {
-  return tracer.startActiveSpan('process_order', async (orderSpan) => {
-    const orderData = req.body;
+  // Create a span for our greeting operation (from Day 9)
+  tracer.startActiveSpan('create_greeting', (span) => {
+    const name = req.params.name;
     
-    // Add attributes to span (from Day 9)
-    orderSpan.setAttribute('order.item_count', orderData.items?.length || 0);
-    orderSpan.setAttribute('user.id', orderData.userId);
+    // Add attributes to describe what we're doing (from Day 9)
+    span.setAttribute('user.name', name);
+    span.setAttribute('greeting.type', 'personal');
     
-    try {
-      // Step 1: Validate
-      await tracer.startActiveSpan('validate_order', async (span) => {
-        try {
-          await validateOrder(orderData);
-          span.setStatus({ code: SpanStatusCode.OK });
-        } catch (error) {
-          span.recordException(error);
-          span.setStatus({ code: SpanStatusCode.ERROR, message: error.message });
-          throw error;
-        } finally {
-          span.end();
-        }
+    // Add an event to mark when we start processing (from Day 9)
+    span.addEvent('processing_started');
+    
+    // Simulate some processing time
+    setTimeout(() => {
+      // Create a nested span for message formatting (from Day 9)
+      tracer.startActiveSpan('format_message', (formatSpan) => {
+        const message = `Hello, ${name}! Welcome to OpenTelemetry tracing and metrics.`;
+        
+        formatSpan.setAttribute('message.length', message.length);
+        formatSpan.addEvent('message_formatted');
+        formatSpan.end();
+        
+        // Count this greeting (NEW for Day 10)
+        greetingsTotal.add(1);
+        
+        // Count this specific name (NEW for Day 10)
+        popularNames.add(1, { name: name });
+        
+        // Add final attributes and events to parent span (from Day 9)
+        span.setAttribute('response.message', message);
+        span.addEvent('processing_completed');
+        span.end();
+        
+        res.json({ 
+          message,
+          timestamp: new Date().toISOString()
+        });
       });
-      
-      // Step 2: Check inventory
-      const inventoryResult = await tracer.startActiveSpan('check_inventory', async (span) => {
-        try {
-          const result = await checkInventory(orderData.items);
-          span.setStatus({ code: SpanStatusCode.OK });
-          return result;
-        } catch (error) {
-          span.recordException(error);
-          span.setStatus({ code: SpanStatusCode.ERROR });
-          throw error;
-        } finally {
-          span.end();
-        }
-      });
-      
-      if (!inventoryResult.allAvailable) {
-        throw new Error('Some items are out of stock');
-      }
-      
-      // Step 3: Calculate shipping
-      const shippingCost = await tracer.startActiveSpan('calculate_shipping', async (span) => {
-        try {
-          const cost = await calculateShipping(orderData);
-          span.setStatus({ code: SpanStatusCode.OK });
-          return cost;
-        } catch (error) {
-          span.recordException(error);
-          span.setStatus({ code: SpanStatusCode.ERROR });
-          throw error;
-        } finally {
-          span.end();
-        }
-      });
-      
-      // Step 4: Process payment
-      const totalAmount = (orderData.total || 100) + shippingCost;
-      
-      await tracer.startActiveSpan('process_payment', async (span) => {
-        try {
-          const paymentResult = await processPayment(totalAmount, orderData.paymentMethod);
-          span.setStatus({ code: SpanStatusCode.OK });
-        } catch (error) {
-          span.recordException(error);
-          span.setStatus({ code: SpanStatusCode.ERROR, message: 'Payment failed' });
-          throw error;
-        } finally {
-          span.end();
-        }
-      });
-      
-      // Step 5: Save order
-      const orderId = await tracer.startActiveSpan('save_order', async (span) => {
-        try {
-          const id = await saveOrder(orderData);
-          span.setStatus({ code: SpanStatusCode.OK });
-          return id;
-        } catch (error) {
-          span.recordException(error);
-          span.setStatus({ code: SpanStatusCode.ERROR });
-          throw error;
-        } finally {
-          span.end();
-        }
-      });
-      
-      // SUCCESS! Count it.
-      ordersTotal.add(1);        // One more order processed
-      ordersSuccess.add(1);      // One more successful order
-      
-      orderSpan.setStatus({ code: SpanStatusCode.OK });
-      
-      res.status(201).json({
-        orderId,
-        status: 'created',
-        total: totalAmount
-      });
-      
-    } catch (error) {
-      // FAILURE! Count it.
-      ordersTotal.add(1);        // One more order processed
-      ordersFailed.add(1);       // One more failed order
-      
-      orderSpan.recordException(error);
-      orderSpan.setStatus({ code: SpanStatusCode.ERROR, message: error.message });
-      
-      res.status(400).json({ error: error.message });
-    } finally {
-      orderSpan.end();
-    }
+    }, 100);
   });
 });
 
-// Health check endpoint
+// Health check endpoint (no manual instrumentation)
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
 const PORT = 3000;
 app.listen(PORT, () => {
-  console.log(`Order service listening on port ${PORT}`);
-  console.log('Send POST requests to /orders to see metrics in action');
+  console.log(`Greeting service listening on port ${PORT}`);
+  console.log('Try: curl http://localhost:3000/hello/Alice');
+  console.log('Metrics will be exported every 30 seconds');
 });
 ```
 
-**What's new:**
-- `ordersTotal.add(1)` - Count every order (success or failure)
-- `ordersSuccess.add(1)` - Count only successful orders  
-- `ordersFailed.add(1)` - Count only failed orders
-
-**Key pattern:** We count in both the success and failure paths, so we capture everything.
+**What's new for Day 10:**
+- **`metrics.getMeter()`** - Get a meter (like getting a tracer)
+- **`meter.createCounter()`** - Create counters to track events
+- **`counter.add(1)`** - Increment counters when events happen
+- **Labels** - `{ name: name }` adds dimensions to metrics
 
 ---
 
-## Step 6: Run Jaeger (for traces)
+## Step 4: Run and test
 
+**Start Jaeger (for traces):**
 ```bash
 docker run -d --name jaeger \
   -p 16686:16686 \
@@ -385,171 +257,167 @@ docker run -d --name jaeger \
   jaegertracing/all-in-one:latest
 ```
 
-Jaeger UI: http://localhost:16686
-
----
-
-## Step 7: Run the application
-
+**Run the application:**
 ```bash
-node --require ./instrumentation.js app.js
+node -r ./instrumentation.js app.js
 ```
 
-We should see:
-```
-OpenTelemetry initialized (traces + metrics)
-Order service listening on port 3000
-Send POST requests to /orders to see metrics in action
-```
-
----
-
-## Step 8: Generate traffic to create metrics
-
-Send multiple requests to generate both traces and metrics:
-
+**Send test requests:**
 ```bash
-# Send 10 requests (some will succeed, some will fail due to payment simulation)
+# Send multiple greetings to generate metrics
+curl http://localhost:3000/hello/Alice
+curl http://localhost:3000/hello/Bob
+curl http://localhost:3000/hello/Alice
+curl http://localhost:3000/hello/Charlie
+curl http://localhost:3000/hello/Alice
+
+# Generate more data
 for i in {1..10}; do
-  curl -X POST http://localhost:3000/orders \
-    -H "Content-Type: application/json" \
-    -d '{"userId":"user'$i'","items":[{"sku":"WIDGET-'$i'","quantity":1}],"total":99,"paymentMethod":"credit_card"}'
-  echo ""  # New line
-  sleep 1
+  curl http://localhost:3000/hello/User$i
 done
 ```
 
-**What you'll see:**
-- Some requests succeed (201 status)
-- Some requests fail (400 status) due to random payment failures
-- All requests create traces (visible in Jaeger)
-- All requests increment our counters
+**View the trace in Jaeger on http://localhost:16686**
+
+**What happens:**
+- **Traces** go to Jaeger (like Day 9)
+- **Metrics** are collected and exported every 30 seconds
+- You'll see console output showing metrics being sent
 
 ---
 
-## Step 9: Understanding what we measured
+## Understanding what we created
 
-After sending requests, our counters are tracking:
-
-**ordersTotal** = Total orders processed (success + failed)
-- Started at 0
-- Goes up by 1 for every request
-- After 10 requests: should be 10
-
-**ordersSuccess** = Successful orders only  
-- Started at 0
-- Goes up by 1 only when order succeeds
-- After 10 requests: should be ~8 (80% success rate)
-
-**ordersFailed** = Failed orders only
-- Started at 0  
-- Goes up by 1 only when order fails
-- After 10 requests: should be ~2 (20% failure rate)
-
-**Math check:** `ordersSuccess + ordersFailed = ordersTotal` ✅
-
----
-
-## Step 10: Where do metrics go?
-
-Unlike traces (which we can see in Jaeger), metrics need a different kind of backend:
-
-**For learning:** We're sending metrics over OTLP, but we can't see them in Jaeger (Jaeger is for traces).
-
-**For production:** Metrics go to:
-- **Dash0** - Native OpenTelemetry backend with built-in dashboards
-- **Prometheus + Grafana** - Traditional open-source monitoring stack
-- **Other OTEL-native vendors** - Any backend that supports OTLP metrics
-
-**For now:** The goal is to emit metrics correctly. Visualization comes in later weeks.
-
----
-
-## Metrics + Traces = Powerful combination
-
-Here's how they work together:
-
-**Metrics tell you WHEN and HOW MUCH:**
-```
-orders_failed_total increased by 5 in the last hour
-→ "We have a problem!"
-```
-
-**Traces tell you WHY and WHERE:**
-```
-Query Jaeger for failed traces in the last hour
-→ See exactly which orders failed and why
-→ "All failures are in the payment step"
-```
-
-**Example workflow:**
-1. Notice `ordersFailed` counter going up (metric)
-2. Query Jaeger for recent failed traces (trace)
-3. See that all failures are payment-related (trace details)
-4. Fix the payment issue
-
----
-
-## Key patterns we learned
-
-### Pattern 1: Create counters once, use everywhere
+### 1. Simple counters
 
 ```javascript
-// At startup
-const ordersTotal = meter.createCounter("orders_processed_total");
-
-// In request handlers
-ordersTotal.add(1);  // Increment by 1
+greetingsTotal.add(1);        // Counts every greeting sent
+requestsTotal.add(1);         // Counts every request received
 ```
 
-### Pattern 2: Count in both success and failure paths
+These create metrics like:
+- `greetings_sent_total = 15` (we've sent 15 greetings)
+- `requests_received_total = 15` (we've received 15 requests)
+
+### 2. Counters with labels (dimensions)
 
 ```javascript
-try {
-  // ... do work ...
-  ordersTotal.add(1);
-  ordersSuccess.add(1);
-} catch (error) {
-  ordersTotal.add(1);
-  ordersFailed.add(1);
+popularNames.add(1, { name: name });
+```
+
+This creates metrics like:
+- `popular_names_total{name="Alice"} = 3` (Alice was requested 3 times)
+- `popular_names_total{name="Bob"} = 1` (Bob was requested 1 time)
+- `popular_names_total{name="Charlie"} = 1` (Charlie was requested 1 time)
+
+**Labels let you slice and dice your data!**
+
+---
+
+## Viewing metrics (simple approach)
+> **Note:** Jaeger is great for traces but not ideal for viewing metrics. For proper metrics visualization, you'd typically use Prometheus + Grafana or similar tools. We'll explore metrics backends on Day 15.
+
+<details>
+<summary>For learning, click here to use ConsoleMetricExporter to see metrics directly in the terminal.</summary>
+
+Update your `instrumentation.js` to use console output instead of OTLP:
+
+```javascript
+// instrumentation.js
+const { NodeSDK } = require("@opentelemetry/sdk-node");
+const { getNodeAutoInstrumentations } = require("@opentelemetry/auto-instrumentations-node");
+const { OTLPTraceExporter } = require("@opentelemetry/exporter-trace-otlp-http");
+const { ConsoleMetricExporter, PeriodicExportingMetricReader } = require("@opentelemetry/sdk-metrics");
+const { resourceFromAttributes } = require("@opentelemetry/resources");
+const { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } = require("@opentelemetry/semantic-conventions");
+
+const sdk = new NodeSDK({
+  resource: resourceFromAttributes({
+    [ATTR_SERVICE_NAME]: "greeting-service",
+    [ATTR_SERVICE_VERSION]: "1.0.0",
+  }),
+  
+  // Traces to Jaeger (from Day 9)
+  traceExporter: new OTLPTraceExporter({
+    url: "http://localhost:4318/v1/traces",
+  }),
+  
+  // Metrics to console (for learning)
+  metricReader: new PeriodicExportingMetricReader({
+    exporter: new ConsoleMetricExporter(),
+    exportIntervalMillis: 10000, // Export every 10 seconds for faster feedback
+  }),
+  
+  instrumentations: [getNodeAutoInstrumentations()],
+});
+
+sdk.start();
+console.log("OpenTelemetry initialized with traces and metrics");
+```
+
+**What changed:**
+- **ConsoleMetricExporter** instead of OTLPMetricExporter for metrics
+- **10 seconds** instead of 30 for faster feedback
+- Traces still go to Jaeger, metrics show in console
+
+Now you'll see clean metrics output like:
+
+```
+{
+  descriptor: {
+    name: 'greetings_sent_total',
+    description: 'Total number of greetings sent',
+    unit: '',
+    type: 'COUNTER'
+  },
+  dataPoints: [ { attributes: {}, value: 15 } ]
+}
+
+{
+  descriptor: {
+    name: 'popular_names_total',
+    description: 'Count of greetings by name',
+    unit: '',
+    type: 'COUNTER'
+  },
+  dataPoints: [
+    { attributes: { name: 'Alice' }, value: 3 },
+    { attributes: { name: 'Bob' }, value: 1 },
+    { attributes: { name: 'Charlie' }, value: 1 }
+  ]
 }
 ```
+**What this tells us:**
+- We've sent 15 greetings total
+- Alice was the most popular name (3 requests)
+- Bob was requested once
 
-### Pattern 3: Use descriptive names
-
-```javascript
-// Good names
-"orders_processed_total"
-"payment_failures_total" 
-"requests_received_total"
-
-// Bad names
-"counter1"
-"stuff"
-"things"
-```
+</details>
 
 ---
 
 ## What I'm taking into Day 11
 
-Today we learned **basic metrics** - specifically counters that help us see patterns:
+Today we learned the **Metrics API** basics:
 
 **Key skills:**
-- Creating counters with `meter.createCounter()`
-- Incrementing counters with `counter.add(1)`
-- Counting both successes and failures
-- Understanding that metrics show patterns, traces show details
+- Getting a meter with `metrics.getMeter()`
+- Creating counters to count events that happen with `meter.createCounter()`
+- Incrementing counters to add values with `counter.add()`
+- Using labels to add dimensions - `{ name: "Alice" }`
+- Combining metrics with tracing from Day 9
 
-**The simple pattern:**
+**The basic pattern:**
 ```javascript
-// Create once
-const counter = meter.createCounter("things_total");
+// Setup (once)
+const meter = metrics.getMeter('service-name', '1.0.0');
+const counter = meter.createCounter('events_total');
 
-// Use everywhere
-counter.add(1);  // Count one more thing
+// Usage (everywhere)
+counter.add(1);                    // Count an event
+counter.add(1, { type: 'error' }); // Count with context
 ```
 
-**Tomorrow (Day 11):** We'll learn **basic logging** and see how logs work alongside traces and metrics to give us the complete picture.
+**Tomorrow (Day 11) we'll learn the **Logs API** to complete the basic trio of traces, metrics, and logs.
 
 See you on Day 11!
