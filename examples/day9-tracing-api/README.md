@@ -1,6 +1,6 @@
 # Day 9: Tracing API Demo
 
-A simple Express API demonstrating manual instrumentation with OpenTelemetry.
+A simple Express greeting API demonstrating manual instrumentation with OpenTelemetry.
 
 ## Quick Start
 
@@ -22,17 +22,17 @@ A simple Express API demonstrating manual instrumentation with OpenTelemetry.
    node --require ./instrumentation.js app.js
    ```
 
-4. **Send a test request:**
+4. **Send test requests:**
    ```bash
-   curl -X POST http://localhost:3000/orders \
-     -H "Content-Type: application/json" \
-     -d '{
-       "userId": "user_123",
-       "items": [{"sku": "WIDGET-1", "quantity": 2}],
-       "total": 99.99,
-       "paymentMethod": "credit_card",
-       "address": {"country": "US"}
-     }'
+   # Basic greeting
+   curl http://localhost:3000/hello/Alice
+   
+   # Try different names
+   curl http://localhost:3000/hello/Bob
+   curl http://localhost:3000/hello/Charlie
+   
+   # Health check (no manual spans)
+   curl http://localhost:3000/health
    ```
 
 5. **View traces:** Open http://localhost:16686
@@ -42,7 +42,16 @@ A simple Express API demonstrating manual instrumentation with OpenTelemetry.
 - Creating manual spans with `tracer.startActiveSpan()`
 - Adding attributes with `span.setAttribute()`
 - Recording events with `span.addEvent()`
-- Handling errors with `span.recordException()`
+- Creating nested spans for parent-child relationships
 - Viewing traces in Jaeger
+
+## Expected Response
+
+```json
+{
+  "message": "Hello, Alice! Welcome to OpenTelemetry tracing.",
+  "timestamp": "2024-01-09T10:30:00.000Z"
+}
+```
 
 See the full tutorial: [Day 9 - Tracing API](../../week2/day9.md)
