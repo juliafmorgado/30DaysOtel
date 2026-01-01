@@ -1,54 +1,63 @@
-# Day 14 – Week 2 Recap: Mastering OpenTelemetry APIs & SDK
+# Day 14 – Week 2 Recap: OpenTelemetry APIs & SDK
 
-Congratulations! We've completed Week 2 of our OpenTelemetry journey. This week was all about **hands-on experience with the APIs**, so learning to create traces, metrics, and logs in our code, and understanding how the SDK processes them.
+We’ve made it to the end of Week 2!
+This week was about getting our hands dirty with OpenTelemetry APIs, adding traces, metrics, and logs to real code, and wiring up just enough SDK configuration to make things work.
+
+At this point, you might feel like:
+- “I copied some SDK config and it worked”
+- “I know how to add spans, but not everything behind the scenes”
+- “I understand what they do but I couldn't do it alone”
+
+That’s completely normal and expected.
 
 > **Knowledge Check:** Test your Week 2 knowledge with our [`week2-knowledge-check.md`](./week2-knowledge-check.md)
 >
-> **Next Week Preview** we will dive into the **OpenTelemetry Collector**, the powerful data processing pipeline that can transform, route, and enhance our telemetry data.
+> **Next Week Preview:** We will dive into the **OpenTelemetry Collector**, the powerful data processing pipeline that can transform, route, and enhance our telemetry data.
 
 ---
 
 ## What We Accomplished This Week
 
 ### **The Big Picture: API vs SDK**
-- **API** = What we write in our code (stable, vendor-neutral)
-- **SDK** = How telemetry gets processed and exported (configurable)
-- **Separation** = Change backends without changing application code
+One of the biggest ideas this week was the difference between instrumentation and implementation.
+- **API** = what we write in our application code (create spans, record metrics, emit logs)
+- **SDK** = what actually processes and exports that data (batching, exporting, sampling, etc.)
+
+The **separation** between them allows us to change how telemetry behaves without changing application code.
 
 ### **The Three Pillars of Observability**
-- **Traces** = Individual request journeys ("What happened to this order?")
-- **Metrics** = Aggregate patterns ("How many orders are failing?")
-- **Logs** = Detailed event information ("Why did this payment fail?")
+- **Traces** = Individual request journeys ("What happened to this request?")
+- **Metrics** = Aggregate patterns ("How often is something happening overall?")
+- **Logs** = Detailed event information ("Why did this operation fail?")
 
 ### **Core Skills Developed**
-- Creating manual spans with proper attributes and error handling
-- Implementing basic counters to track success/failure patterns
-- Adding structured logging with automatic trace correlation
-- Understanding context propagation and when it breaks
-- Configuring SDK pipelines with samplers, processors, and exporters
+- Add manual spans with proper attributes and events
+- Use counters to track basic behavior
+- Emit structured logs that automatically link to traces
+- Understand context propagation and when it breaks
+- Set up a basic SDK configuration that sends telemetry somewhere useful
 
 ---
 
 ## Day-by-Day Recap
 
 ### **[Day 8: API vs SDK](./day8.md)**
-**Key Learning:** The architecture that makes OpenTelemetry portable
+This was the day we zoomed out and talked about architecture.
 
-**What we built:** Simple demo showing API/SDK separation
-- API calls in application code
-- SDK configuration in separate file
-- No-op mode for testing
-
-**Key insight:** Change observability backends without touching application code.
+**What we learned:** 
+- The API is what our code talks to
+- The SDK is the concrete implementation behind it
+- Telemetry can be turned off (no-op) without deleting instrumentation
+- This design avoids vendor lock-in
 
 ---
 
 ### **[Day 9: Tracing API](./day9.md)**
-**Key Learning:** Creating spans to follow individual requests
+Focus: Following a single request through the system
 
-**What we built:** Complete order processing API with manual instrumentation
-- 5-step order flow (validate → inventory → shipping → payment → save)
-- Proper span attributes and error handling
+**What we built:** Simple greeting service with manual instrumentation
+- Basic greeting endpoint with nested spans
+- Span attributes and events for request details
 - Parent-child span relationships
 
 **Key insight:** Traces tell the story of individual requests through your system.
@@ -56,99 +65,71 @@ Congratulations! We've completed Week 2 of our OpenTelemetry journey. This week 
 ---
 
 ### **[Day 10: Metrics API](./day10.md)**
-**Key Learning:** Counting events to see aggregate patterns
+Focus: Looking at behavior over time
 
-**What we built:** Simple counters on top of Day 9's tracing
-- `orders_processed_total` - All orders (success + failed)
-- `orders_success_total` - Successful orders only
-- `orders_failed_total` - Failed orders only
+**What we built:** Enhanced greeting service with counters
+- `greetings_sent_total` - Count of greetings sent
+- `requests_received_total` - Count of requests received  
+- `popular_names_total` - Count by name with labels
 
-**Key insight:** Metrics show patterns across many requests, traces show individual request details.
-
+Key takeaway: Metrics don’t explain why something happened, they show how often it happens.
 ---
 
 ### **[Day 11: Logs API](./day11.md)**
-**Key Learning:** Structured logging with automatic trace correlation
+Focus: Adding detail and context
 
-**What we built:** Structured logs integrated with traces and metrics
-- Order started, completed, and failed events
-- Automatic trace_id and span_id correlation
-- Structured attributes for filtering
+**What we built:**
+- Structured logs instead of plain text
+- Automatic trace_id and span_id correlation in logs
+- Error logs that line up with failed spans
 
-**Key insight:** Logs provide detailed context, automatically linked to traces for complete debugging.
-
+Key takeaway: Logs become much more useful when they’re connected to traces.
 ---
 
 ### **[Day 12: Context Propagation](./day12.md)**
-**Key Learning:** How trace context flows through your application
+Focus: How everything stays connected
 
-**What we built:** Examples showing when context works and when it breaks
-- Automatic propagation (async/await)
-- Broken propagation (setTimeout)
-- Manual fixes (context.with())
+**What we saw:**
+- Context usually flows automatically
+- `setTimeout` and event emitters can break it
+- Broken context leads to disconnected traces
 
-**Key insight:** Context propagation usually works automatically, but setTimeout and event emitters can break it.
+Key takeaway: Good observability depends on context staying intact.
+---
+
+### **[Day 13: You Deserve a Break!](./day13.md)**
+We took a well-deserved break to process everything learned
+
+Why?
+There’s a lot of new mental models here. Pausing helps them settle.
 
 ---
 
-### **[Day 13: SDK Pipelines](./day13.md)**
-**Key Learning:** Samplers, processors, and exporters control telemetry flow
+## The “It Finally Makes Sense” Pattern
 
-**What we built:** Different SDK configurations showing pipeline components
-- Console exporter for learning
-- Sampling for cost control
-- Batch processing for efficiency
+By the end of Week 2, we were using traces, metrics, and logs together, even if we didn’t fully understand every internal piece yet.
 
-**Key insight:** SDK pipelines control cost (sampling), performance (processing), and destination (exporting).
-
----
-
-## The Complete Observability Pattern
-
-By the end of Week 2, you learned this powerful pattern:
+Here's a short recap:
 
 ```javascript
-// Complete observability in action
-tracer.startActiveSpan('process_order', async (span) => {
-  // 1. STRUCTURED LOGGING: Record what's happening
-  logger.emit({
-    severityText: "INFO",
-    body: "Order processing started",
-    attributes: { "user.id": userId }
-  });
-  
+tracer.startActiveSpan("create_greeting", async (span) => {
+  span.setAttribute("user.name", name); // TRACING: Add attributes to describe the operation
+  requestsTotal.add(1); // METRICS: Count this request
+
   try {
-    // ... business logic ...
-    
-    // 2. METRICS: Count successes
-    ordersSuccess.add(1);
-    
-    // 3. LOGGING: Record success
-    logger.emit({
-      severityText: "INFO", 
-      body: "Order completed",
-      attributes: { "order.id": orderId }
-    });
-    
+    logger.emit({ severityText: "INFO", body: "Greeting created" }); // LOGGING: Record what's happening
+    greetingsTotal.add(1);
   } catch (error) {
-    // 4. TRACING: Record error in span
     span.recordException(error);
-    span.setStatus({ code: SpanStatusCode.ERROR });
-    
-    // 5. METRICS: Count failures
-    ordersFailed.add(1);
-    
-    // 6. LOGGING: Record failure details
-    logger.emit({
-      severityText: "ERROR",
-      body: "Order failed", 
-      attributes: { "error.message": error.message }
-    });
+    logger.emit({ severityText: "ERROR", body: "Greeting failed" });
+    throw error;
+  } finally {
+    span.end();
   }
-  
-  // All three are automatically correlated via trace context!
 });
 ```
+
+At this stage, the important thing isn’t how the SDK processes this, it’s that the code is instrumented correctly, the data shows up and everything is connected.
 
 ---
 
@@ -167,155 +148,73 @@ tracer.startActiveSpan('process_order', async (span) => {
 - Automatic correlation via trace context
 
 ### **3. SDK Configuration**
-- Samplers for cost control (head-based sampling)
-- Processors for performance (simple vs batch)
-- Exporters for destinations (console, OTLP)
 - Resource attributes for service identification
+- Basic exporter configuration (console vs OTLP)
+- Understanding the basic SDK setup pattern
+- Auto-instrumentation setup
 
-### **4. Production Readiness**
-- Understanding when context propagation breaks
-- Configuring appropriate sampling rates
-- Using structured logging for searchability
-- Setting up proper error handling
+**What we actually learned about the SDK (even if it felt like copy-paste):**
+We've been using SDK configuration without diving deep into the internals. Here's the basic pattern of SDK initialization that we implicitly learned:
 
----
-
-## Tools and Technologies Used
-
-### **Core Libraries**
-- `@opentelemetry/api` - Stable interfaces for creating telemetry
-- `@opentelemetry/sdk-node` - Node.js SDK implementation
-- `@opentelemetry/auto-instrumentations-node` - Automatic instrumentation
-
-### **Exporters**
-- `@opentelemetry/exporter-trace-otlp-http` - OTLP trace export
-- `@opentelemetry/exporter-metrics-otlp-http` - OTLP metrics export
-- `@opentelemetry/exporter-logs-otlp-http` - OTLP logs export
-
-### **Observability Backends**
-- **Jaeger** - Distributed tracing visualization
-- **Console** - Terminal output for learning
-- **OTLP Protocol** - Industry standard for telemetry export
-
----
-
-## Common Patterns Learned
-
-### **1. The Instrumentation Pattern**
 ```javascript
-tracer.startActiveSpan('operation_name', async (span) => {
-  span.setAttribute('key', 'value');
+const sdk = new NodeSDK({
+  // We learned how to identify our service (resource attributes)
+  resource: resourceFromAttributes({
+    [ATTR_SERVICE_NAME]: "greeting-service",
+    [ATTR_SERVICE_VERSION]: "1.0.0",
+  }),
   
-  try {
-    await doWork();
-    span.setStatus({ code: SpanStatusCode.OK });
-  } catch (error) {
-    span.recordException(error);
-    span.setStatus({ code: SpanStatusCode.ERROR });
-    throw error;
-  } finally {
-    span.end();
-  }
+  // How to send traces somewhere (exporters)
+  traceExporter: new OTLPTraceExporter({
+    url: "http://localhost:4318/v1/traces",
+  }),
+  
+  // How to send metrics to console
+  metricReader: new PeriodicExportingMetricReader({
+    exporter: new ConsoleMetricExporter(),
+    exportIntervalMillis: 10000,
+  }),
+  
+  // That auto-instrumentation exists and captures HTTP requests automatically
+  instrumentations: [getNodeAutoInstrumentations()],
 });
 ```
 
-### **2. The Counting Pattern**
-```javascript
-try {
-  // ... do work ...
-  successCounter.add(1);
-} catch (error) {
-  failureCounter.add(1);
-  throw error;
-}
-```
+**What we did NOT learn (and that's fine!):**
+We didn’t talk about:
+- batching processors
+- sampling strategies
+- SDK pipelines
+- why defaults were chosen
 
-### **3. The Context Fix Pattern**
-```javascript
-const currentContext = context.active();
-setTimeout(() => {
-  context.with(currentContext, () => {
-    // Code here sees the captured context
-  });
-}, 1000);
-```
+The default SDK configuration works perfectly for learning scenarios. We got working observability without cognitive overload. Understanding why comes next.
 
 ---
 
-## Troubleshooting Skills Developed
+## Why This Sets Us Up Perfectly for Week 3
 
-### **Broken Traces**
-- **Symptom:** Multiple separate traces instead of one connected trace
-- **Cause:** Context propagation broken (usually setTimeout or event emitters)
-- **Fix:** Use `context.active()` and `context.with()`
+In Week 3, we move beyond the SDK and into the Collector.
 
-### **Missing Telemetry**
-- **Symptom:** No spans/metrics/logs appearing
-- **Cause:** SDK not initialized or wrong exporter configuration
-- **Fix:** Check instrumentation file and backend connectivity
+That’s where:
+- pipelines become explicit
+- processors finally make sense
+- routing and filtering show up
+- “why not do this in the SDK?” becomes a real question
 
-### **Sampling Issues**
-- **Symptom:** Some traces missing randomly
-- **Cause:** Sampling rate too low
-- **Fix:** Adjust `TraceIdRatioBasedSampler` ratio or use `AlwaysOnSampler` for debugging
+Week 2 gave us working observability.
+Week 3 explains the machinery.
 
 ---
 
-## What's Next: Week 3 Preview
+## Final Thoughts
 
-**Theme:** OpenTelemetry Collector Deep Dive
+> If you feel like: “I know how to use this, even if I don’t fully understand it yet”
+>
+> That’s success.
 
-**You'll learn:**
-- **Collector Architecture** - Receivers → Processors → Exporters
-- **Advanced Processing** - Transformations, filtering, routing
-- **Multi-Backend Strategies** - Send different data to different systems
-- **Production Deployment** - Agent vs Gateway patterns
-- **Scaling Patterns** - Load balancing and high availability
+You now have:
+- real instrumentation
+- real telemetry
+- a solid foundation
 
-**Why this matters:** The Collector provides much more powerful data processing than the SDK alone, enabling complex routing, transformations, and multi-backend strategies.
-
----
-
-## Reflection Questions
-
-Before moving to Week 3, consider:
-
-1. **Which observability pillar (traces, metrics, logs) do you find most useful for debugging?**
-2. **What sampling rate would you use for a high-traffic production service?**
-3. **When would you need manual context propagation in your applications?**
-4. **How would you explain the API/SDK separation to a teammate?**
-5. **What resource attributes would be most important for your services?**
-
----
-
-## Resources for Continued Learning
-
-### **Official Documentation**
-- [OpenTelemetry Concepts](https://opentelemetry.io/docs/concepts/)
-- [Node.js SDK Documentation](https://opentelemetry.io/docs/languages/js/)
-- [Semantic Conventions](https://opentelemetry.io/docs/specs/semconv/)
-
-### **Community Resources**
-- [OpenTelemetry Slack](https://cloud-native.slack.com/) (#opentelemetry channel)
-- [CNCF OpenTelemetry SIG](https://github.com/open-telemetry/community)
-- [OpenTelemetry Blog](https://opentelemetry.io/blog/)
-
-### **Practice Projects**
-- Add OpenTelemetry to your existing Node.js applications
-- Experiment with different sampling rates and exporters
-- Try correlating logs with traces in your debugging workflow
-
----
-
-## Congratulations! 🎉
-
-You've successfully completed Week 2 and now have hands-on experience with:
-- ✅ Creating manual traces, metrics, and logs
-- ✅ Understanding API/SDK separation
-- ✅ Configuring basic SDK pipelines
-- ✅ Debugging context propagation issues
-- ✅ Setting up complete observability for applications
-
-**You're ready for Week 3!** The OpenTelemetry Collector will take your observability skills to the next level with advanced data processing capabilities.
-
-See you on Day 15! 🚀
+And you’re ready for Day 15!
