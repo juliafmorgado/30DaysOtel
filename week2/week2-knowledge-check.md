@@ -14,9 +14,11 @@ Test your understanding of Week 2 concepts! This knowledge check covers the Open
 <details>
 <summary>Click to see answer</summary>
 
-**Answer:** You can change observability backends without changing your application code. The API provides stable interfaces for creating telemetry, while the SDK handles the configurable processing and export logic.
+**Answer:** **Keeps your application code stable** so you can switch SDK implementations without changing your instrumentation code.
 
-**Key insight:** This separation makes OpenTelemetry vendor-neutral and portable.
+**Simple example:** Your app calls `tracer.startActiveSpan()` (API). You can switch from the standard OpenTelemetry SDK to a vendor's SDK without touching your application code.
+
+**Why this matters:** No vendor lock-in -> your observability code works with any OpenTelemetry-compatible implementation.
 </details>
 
 ### Question 2
@@ -25,14 +27,12 @@ Test your understanding of Week 2 concepts! This knowledge check covers the Open
 <details>
 <summary>Click to see answer</summary>
 
-**Answer:** The API operates in "no-op" mode - all API calls do nothing but don't break your application. This is useful for testing and gradual rollouts.
+**Answer:** **All API calls do nothing** but your application still works normally. This is called "no-op" mode.
 
-**Example:**
-```javascript
-const span = tracer.startSpan('operation');  // Does nothing if no SDK
-span.setAttribute('key', 'value');           // No-op
-span.end();                                   // No-op
-```
+**Why this is useful:**
+- Test your instrumented code without setting up backends
+- Add instrumentation now, enable observability later
+- No performance impact when observability is disabled
 </details>
 
 ---
@@ -40,16 +40,14 @@ span.end();                                   // No-op
 ## Section 2: Tracing API
 
 ### Question 3
-**What's the difference between `tracer.startSpan()` and `tracer.startActiveSpan()`?**
+**In your greeting service, what does `span.setAttribute('user.name', name)` do?**
 
 <details>
 <summary>Click to see answer</summary>
 
-**Answer:** 
-- `startActiveSpan()` automatically sets the span as the active span in the current context, enabling automatic parent-child relationships
-- `startSpan()` creates a span but doesn't set it as active, requiring manual context management
+**Answer:** **Adds metadata to the span** that describes what's happening in this operation.
 
-**Best practice:** Always use `startActiveSpan()` for automatic context propagation.
+**Why useful:** You can search for spans by user name in Jaeger, or see which user was involved when debugging issues.
 </details>
 
 ### Question 4
@@ -94,48 +92,34 @@ tracer.startActiveSpan('operation', async (span) => {
 ## Section 3: Metrics API
 
 ### Question 5
-**What type of metric would you use to track "total orders processed" and why?**
+**What type of metric would you use to track "total greetings sent" and why?**
 
 <details>
 <summary>Click to see answer</summary>
 
-**Answer:** **Counter** - because it only goes up (accumulates over time) and resets when the application restarts.
+**Answer:** **Counter** because it only goes up and resets when your app restarts.
 
-```javascript
-const ordersProcessed = meter.createCounter("orders_processed_total", {
-  description: "Total number of orders processed"
-});
-
-// Usage
-ordersProcessed.add(1); // Increment by 1
-```
-
-**Why not other types:**
-- Gauge: For values that go up and down (like active connections)
-- Histogram: For recording measurements you want percentiles for (like duration)
+Counters are perfect for counting things that accumulate over time, like total greetings sent.
 </details>
 
 ### Question 6
-**How should you handle counting both successes and failures?**
+**How do you add labels/dimensions to metrics to track different categories?**
 
 <details>
 <summary>Click to see answer</summary>
 
-**Answer:** Count in both the success and failure paths to capture everything:
+**Answer:** **Add extra information in curly braces** when you call `add()`:
 
 ```javascript
-try {
-  // ... do work ...
-  ordersTotal.add(1);     // Count all attempts
-  ordersSuccess.add(1);   // Count successes
-} catch (error) {
-  ordersTotal.add(1);     // Count all attempts  
-  ordersFailed.add(1);    // Count failures
-  throw error;
-}
+popularNames.add(1, { name: "Alice" });
+popularNames.add(1, { name: "Bob" });
 ```
 
-**Math check:** `ordersSuccess + ordersFailed = ordersTotal`
+**What happens:** You get separate counts for each name:
+- Alice: gets her own counter
+- Bob: gets his own counter
+
+**Why useful:** See which names are most popular instead of just a total count.
 </details>
 
 ---
@@ -148,26 +132,22 @@ try {
 <details>
 <summary>Click to see answer</summary>
 
-**Answer:** Structured logs use machine-readable attributes instead of free-form text:
+**Answer:** **Structured logs use attributes instead of free-form text**, making them machine-readable.
 
-**Traditional (bad):**
+**Traditional logging:**
 ```javascript
-console.log('Payment failed for user user_123 with error insufficient funds');
+console.log('Greeting created for user Alice');
 ```
 
-**Structured (good):**
+**Structured logging:**
 ```javascript
 logger.emit({
-  severityText: 'ERROR',
-  body: 'Payment processing failed',
-  attributes: {
-    'user.id': 'user_123',
-    'error.message': 'insufficient funds'
-  }
+  body: 'Greeting created',
+  attributes: { 'user.name': 'Alice' }
 });
 ```
 
-**Benefits:** Easy to search, filter, and correlate with traces automatically.
+**Why better:** Easy to search and filter (find all logs for user "Alice").
 </details>
 
 ### Question 8
@@ -176,16 +156,9 @@ logger.emit({
 <details>
 <summary>Click to see answer</summary>
 
-**Answer:** When you emit a log inside an active span, OpenTelemetry automatically adds `traceId` and `spanId` to the log record.
+**Answer:** **OpenTelemetry automatically adds trace IDs to logs** when they're created inside a span.
 
-```javascript
-tracer.startActiveSpan("process_payment", span => {
-  logger.emit({ body: "Payment started" });
-  // This log automatically gets trace_id and span_id!
-});
-```
-
-**Result:** You can click a failed trace → see all logs, or see an error log → jump to the exact trace.
+**Result:** You can find all logs for a specific trace by searching for the trace ID in your log viewer.
 </details>
 
 ---
@@ -193,48 +166,22 @@ tracer.startActiveSpan("process_payment", span => {
 ## Section 5: Context Propagation
 
 ### Question 9
-**In which scenarios does context propagation work automatically?**
+**What's the most common way to fix broken context propagation in callbacks?**
 
 <details>
 <summary>Click to see answer</summary>
 
-**Answer:** Context propagation works automatically for:
-- Normal function calls
-- async/await operations
-- Express middleware (with auto-instrumentation)
-- Most database calls
-- Most HTTP requests
+**Answer:** **Copy the context before `setTimeout`, then restore it inside the callback.**
 
-**Key insight:** Most of the time, you don't need to think about context propagation.
-</details>
+**The problem:** Spans inside `setTimeout` become separate traces instead of being connected.
 
-### Question 10
-**Fix this broken context propagation:**
-
+**The fix:**
 ```javascript
 tracer.startActiveSpan('parent', (span) => {
-  setTimeout(() => {
-    tracer.startActiveSpan('child', (childSpan) => {
-      // This child won't be connected to parent!
-      childSpan.end();
-    });
-  }, 1000);
-  span.end();
-});
-```
-
-<details>
-<summary>Click to see answer</summary>
-
-**Answer:**
-```javascript
-tracer.startActiveSpan('parent', (span) => {
-  // 1. Capture the current context
-  const currentContext = context.active();
+  const currentContext = context.active(); // Save the context
   
   setTimeout(() => {
-    // 2. Restore the context in the callback
-    context.with(currentContext, () => {
+    context.with(currentContext, () => {   // Use the saved context
       tracer.startActiveSpan('child', (childSpan) => {
         // Now this child IS connected to parent!
         childSpan.end();
@@ -245,157 +192,43 @@ tracer.startActiveSpan('parent', (span) => {
 });
 ```
 
-**Pattern:** Capture with `context.active()`, restore with `context.with()`
+**When you need this:** Whenever you see spans appearing as separate traces instead of being nested.
 </details>
 
----
+### Question 10
+**Which of these will automatically keep spans connected as parent-child, and which might break the connection?**
 
-## Section 6: SDK Pipelines
-
-### Question 11
-**What are the three main components of an SDK pipeline and what does each do?**
-
-<details>
-<summary>Click to see answer</summary>
-
-**Answer:**
-1. **Sampler** - "Should we keep this span?" (controls cost)
-2. **Processor** - "How should we package spans?" (controls performance) 
-3. **Exporter** - "Where should we send spans?" (controls destination)
-
-**Pipeline flow:**
-```
-Your Code → Sampler → Processor → Exporter → Backend
-```
-</details>
-
-### Question 12
-**What's the difference between head-based and tail-based sampling?**
-
-<details>
-<summary>Click to see answer</summary>
-
-**Answer:**
-- **Head-based sampling** (SDK): Decision made **upfront** when the trace starts (`startActiveSpan()` time)
-- **Tail-based sampling** (Collector): Decision made **after** the trace completes, based on trace content
-
-**Week 2 focus:** We learned head-based sampling with `TraceIdRatioBasedSampler`
-
-**Example:**
-```javascript
-// Head-based: Decision made immediately
-const sampler = new TraceIdRatioBasedSampler(0.1); // 10% of traces
-```
-</details>
-
-### Question 13
-**When would you use SimpleSpanProcessor vs BatchSpanProcessor?**
-
-<details>
-<summary>Click to see answer</summary>
-
-**Answer:**
-
-**SimpleSpanProcessor:**
-- ✅ Use for: Development, debugging, learning
-- ✅ Benefit: Immediate export (see spans right away)
-- ❌ Problem: Inefficient for high-traffic (too many network calls)
-
-**BatchSpanProcessor:**
-- ✅ Use for: Production applications
-- ✅ Benefit: More efficient (fewer network calls)
-- ❌ Trade-off: Slight delay before spans appear
-
-**Rule of thumb:** Simple for debugging, Batch for production.
-</details>
-
----
-
-## Section 7: Practical Application
-
-### Question 14
-**You notice in Jaeger that some spans appear as separate traces instead of being connected. What's likely wrong and how do you fix it?**
+A) `async/await`  
+B) `setTimeout()`  
+C) `Promise.then()`
 
 <details>
 <summary>Click to see answer</summary>
 
 **Answer:** 
+- **Keep connection:** A) `async/await` and C) `Promise.then()`
+- **Might break:** B) `setTimeout()`
 
-**Likely cause:** Broken context propagation, usually from:
-- `setTimeout` or `setInterval` callbacks
-- Event emitters
-- Message queues
-
-**How to fix:**
-1. Identify where context breaks (look for async boundaries)
-2. Capture context with `context.active()`
-3. Restore context with `context.with()`
-
-**Debug tip:** Look for callbacks and event handlers in your code.
-</details>
-
-### Question 15
-**Your production service handles 10,000 requests per second. What sampling rate would you start with and why?**
-
-<details>
-<summary>Click to see answer</summary>
-
-**Answer:** Start with **1-5%** sampling (`TraceIdRatioBasedSampler(0.01)` to `0.05`)
-
-**Reasoning:**
-- 10,000 RPS × 1% = 100 traces/second (manageable)
-- 10,000 RPS × 100% = 10,000 traces/second (expensive!)
-- You can always increase if you need more data
-- 1% still gives you representative traces for debugging
-
-**Best practice:** Start conservative, increase based on needs and budget.
+**Why:** Promise-based async (async/await, .then) automatically preserves context. Callback-based async (setTimeout, setInterval) often loses context and needs the manual fix.
 </details>
 
 ---
 
-## Section 8: Integration & Correlation
+## Section 6: SDK Configuration
 
-### Question 16
-**How do traces, metrics, and logs work together to provide complete observability?**
-
-<details>
-<summary>Click to see answer</summary>
-
-**Answer:** Each provides a different lens on the same events:
-
-**Metrics** → **WHEN** and **HOW MUCH**
-- "Payment failures spiked at 10:30 AM"
-- "Error rate increased by 500%"
-
-**Traces** → **WHERE** and **WHO** 
-- "Failures are in the payment service"
-- "User user_123's specific request failed"
-
-**Logs** → **WHAT** and **WHY**
-- "Payment declined: insufficient funds"
-- "Database connection timeout after 30s"
-
-**Workflow:** Metrics detect problems → Traces show where → Logs explain why
-</details>
-
-### Question 17
-**Complete this observability pattern:**
+### Question 11
+**Looking at your instrumentation.js file, what does each part of this configuration do?**
 
 ```javascript
-tracer.startActiveSpan('process_order', async (span) => {
-  // Log: Order started
-  
-  try {
-    await processOrder();
-    
-    // Count: Success
-    // Log: Success
-    
-  } catch (error) {
-    // Trace: Record error
-    // Count: Failure  
-    // Log: Failure details
-  }
+const sdk = new NodeSDK({
+  resource: resourceFromAttributes({
+    [ATTR_SERVICE_NAME]: "greeting-service",
+    [ATTR_SERVICE_VERSION]: "1.0.0",
+  }),
+  traceExporter: new OTLPTraceExporter({
+    url: "http://localhost:4318/v1/traces",
+  }),
+  instrumentations: [getNodeAutoInstrumentations()],
 });
 ```
 
@@ -403,93 +236,69 @@ tracer.startActiveSpan('process_order', async (span) => {
 <summary>Click to see answer</summary>
 
 **Answer:**
+- **`resource`:** Identifies your service as "greeting-service" version "1.0.0" - this appears on all your telemetry
+- **`traceExporter`:** Sends traces to Jaeger using OTLP protocol on port 4318
+- **`instrumentations`:** Automatically creates spans for HTTP requests, Express routes, and other operations
+
+**Hidden magic:** The SDK also automatically batches spans for efficiency and adds system information like Node.js version and hostname.
+</details>
+
+### Question 12
+**Why do your metrics appear every 10 seconds instead of immediately after each request?**
+
+<details>
+<summary>Click to see answer</summary>
+
+**Answer:** Because you configured `exportIntervalMillis: 10000` in your metrics setup:
+
 ```javascript
-tracer.startActiveSpan('process_order', async (span) => {
-  // Log: Order started
-  logger.emit({
-    severityText: "INFO",
-    body: "Order processing started",
-    attributes: { "user.id": userId }
-  });
-  
-  try {
-    await processOrder();
-    
-    // Count: Success
-    ordersSuccess.add(1);
-    
-    // Log: Success
-    logger.emit({
-      severityText: "INFO",
-      body: "Order completed successfully"
-    });
-    
-  } catch (error) {
-    // Trace: Record error
-    span.recordException(error);
-    span.setStatus({ code: SpanStatusCode.ERROR });
-    
-    // Count: Failure
-    ordersFailed.add(1);
-    
-    // Log: Failure details
-    logger.emit({
-      severityText: "ERROR",
-      body: "Order processing failed",
-      attributes: { "error.message": error.message }
-    });
-    
-    throw error;
-  }
-});
+metricReader: new PeriodicExportingMetricReader({
+  exporter: new ConsoleMetricExporter(),
+  exportIntervalMillis: 10000, // This line!
+}),
 ```
 
-**Key insight:** All three are automatically correlated via trace context!
+**What happens:** Metrics are collected continuously but exported in batches every 10 seconds for efficiency. This prevents flooding your console with individual metric updates.
 </details>
 
 ---
+
+## Section 7: Integration & Correlation
+
+### Question 13
+**How do traces, metrics, and logs complement each other in observability?**
+
+<details>
+<summary>Click to see answer</summary>
+
+**Answer:** Each provides a different perspective:
+
+**Metrics** → **WHEN** and **HOW MUCH**
+- "Greeting failures spiked at 2:30 PM"
+- "Error rate increased by 200%"
+
+**Traces** → **WHERE** and **WHO** 
+- "Failures are in the validation step"
+- "User Alice's specific request failed"
+
+**Logs** → **WHAT** and **WHY**
+- "Validation failed: name is required"
+- "Database connection timeout after 30s"
+
+**Workflow:** Metrics detect problems → Traces show where → Logs explain why
+</details>
+
+
 
 ## Scoring Your Knowledge
 
 **Count your correct answers:**
 
-- **15-17 correct:** 🏆 **Expert Level** - You've mastered Week 2 concepts! Ready for Week 3.
-- **12-14 correct:** 🎯 **Proficient** - Strong understanding with minor gaps. Review missed topics.
-- **9-11 correct:** 📚 **Developing** - Good foundation but review key concepts before Week 3.
-- **6-8 correct:** 🔄 **Needs Review** - Revisit Week 2 materials, especially hands-on examples.
-- **0-5 correct:** 📖 **Start Over** - Go back through Week 2 with the working examples.
-
----
-
-## Areas to Review Based on Your Score
-
-### **If you missed API/SDK questions (1-2):**
-- Re-read [Day 8: API vs SDK](./day8.md)
-- Practice the no-op mode example
-
-### **If you missed Tracing questions (3-4):**
-- Re-do [Day 9: Tracing API](./day9.md) hands-on example
-- Practice the error handling pattern
-
-### **If you missed Metrics questions (5-6):**
-- Re-do [Day 10: Metrics API](./day10.md) hands-on example
-- Practice creating and incrementing counters
-
-### **If you missed Logs questions (7-8):**
-- Re-do [Day 11: Logs API](./day11.md) hands-on example
-- Practice structured logging with trace correlation
-
-### **If you missed Context questions (9-10):**
-- Re-do [Day 12: Context Propagation](./day12.md) examples
-- Practice the `context.with()` fix pattern
-
-### **If you missed SDK questions (11-13):**
-- Re-read [Day 13: SDK Pipelines](./day13.md)
-- Try the different instrumentation configurations
-
-### **If you missed Integration questions (14-17):**
-- Review how all three pillars work together
-- Practice the complete observability pattern
+- **14-16 correct:** **Expert Level** - You've mastered Week 2 concepts! Ready for Week 3.
+- **11-13 correct:**  **Proficient** - Strong understanding with minor gaps. Review missed topics.
+- **8-10 correct:**  **Developing** - Good foundation but review key concepts before Week 3.
+- **5-7 correct:**  **Needs Review** - Revisit Week 2 materials, especially hands-on examples.
+- **0-4 correct:**  **Start Over** - Go back through Week 2 with the working examples.
 
 ---
 
@@ -497,7 +306,7 @@ tracer.startActiveSpan('process_order', async (span) => {
 
 **If you scored well:** You're ready for Week 3! The OpenTelemetry Collector will build on these foundations.
 
-**If you need review:** That's totally normal! OpenTelemetry has many concepts. Focus on the hands-on examples - they'll help solidify the theory.
+**If you need review:** That's totally normal! OpenTelemetry has many concepts. Focus on the hands-on examples as they'll help solidify the theory.
 
 **Remember:** The goal isn't perfection, it's understanding. You can always come back to these concepts as you use OpenTelemetry in real projects.
 
