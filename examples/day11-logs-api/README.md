@@ -1,18 +1,19 @@
 # Day 11 - Logs API Example
 
-This example demonstrates basic structured logging using OpenTelemetry, building on the tracing and metrics examples from Days 9 & 10.
+This example demonstrates basic structured logging using OpenTelemetry, building on the greeting service from Days 9 & 10.
 
 ## What this example shows
 
 - **Simple structured logging** with automatic trace correlation
 - **Basic logging patterns** for beginners
 - **Integration** of logs with existing tracing and metrics code
+- **Error logging** with simple validation
 
 ## Logs we create
 
-1. **Order started** - When processing begins (INFO level)
-2. **Order completed** - When order succeeds (INFO level)
-3. **Order failed** - When any step fails (ERROR level)
+1. **Greeting started** - When processing begins (INFO level)
+2. **Greeting completed** - When greeting succeeds (INFO level)
+3. **Greeting failed** - When validation fails (ERROR level)
 
 All logs automatically include `traceId` and `spanId` for correlation.
 
@@ -38,53 +39,81 @@ All logs automatically include `traceId` and `spanId` for correlation.
 
 4. **Send test requests:**
    ```bash
-   # Send 10 requests (some will succeed, some will fail)
-   for i in {1..10}; do
-     curl -X POST http://localhost:3000/orders \
-       -H "Content-Type: application/json" \
-       -d '{"userId":"user'$i'","items":[{"sku":"WIDGET-'$i'","quantity":1}],"total":99,"paymentMethod":"credit_card"}'
-     echo ""
-     sleep 1
+   # Send successful greetings
+   curl http://localhost:3000/hello/Alice
+   curl http://localhost:3000/hello/Bob
+   curl http://localhost:3000/hello/Charlie
+
+   # Send a greeting that will fail (name too long)
+   curl http://localhost:3000/hello/ThisNameIsWayTooLongAndWillCauseAnErrorBecauseItExceedsFiftyCharacters
+
+   # Send more successful greetings
+   curl http://localhost:3000/hello/Alice
+   curl http://localhost:3000/hello/David
+
+   # Generate more data
+   for i in {1..5}; do
+     curl http://localhost:3000/hello/User$i
    done
    ```
 
 5. **View traces in Jaeger:**
    - Open http://localhost:16686
-   - Select "order-service" 
+   - Select "greeting-service" 
    - Click "Find Traces"
+
+6. **View metrics in console:**
+   - Metrics are exported every 10 seconds to your terminal
+   - Look for `greetings_sent_total`, `requests_received_total`, `popular_names_total`, and `greeting_errors_total`
 
 ## What you'll see
 
-- **Traces**: Individual request flows in Jaeger
-- **Metrics**: Counters increment as orders are processed (from Day 10)
+- **Traces**: Individual greeting flows in Jaeger (from Day 9)
+- **Metrics**: Counters in your terminal showing greetings, popular names, errors (from Day 10)
 - **Logs**: Structured log messages with automatic trace correlation (NEW!)
 
 ## Example Log Output
 
-**Order Started:**
+**Greeting Started:**
 ```json
 {
   "severityText": "INFO",
-  "body": "Order processing started",
+  "body": "Greeting processing started",
   "traceId": "abc123...",
   "spanId": "def456...",
   "attributes": {
-    "user.id": "user1",
-    "order.item_count": 1
+    "user.name": "Alice",
+    "greeting.type": "personal"
   }
 }
 ```
 
-**Order Failed:**
+**Greeting Completed:**
 ```json
 {
-  "severityText": "ERROR",
-  "body": "Order processing failed",
+  "severityText": "INFO",
+  "body": "Greeting processing completed successfully",
   "traceId": "abc123...",
   "spanId": "def456...",
   "attributes": {
-    "user.id": "user1",
-    "error.message": "Payment declined: insufficient funds"
+    "user.name": "Alice",
+    "message.length": 67,
+    "processing.duration_ms": 100
+  }
+}
+```
+
+**Greeting Failed:**
+```json
+{
+  "severityText": "ERROR",
+  "body": "Greeting processing failed",
+  "traceId": "abc123...",
+  "spanId": "def456...",
+  "attributes": {
+    "user.name": "ThisNameIsWayTooLong...",
+    "error.message": "name too long",
+    "name.length": 85
   }
 }
 ```
@@ -99,7 +128,7 @@ All logs automatically include `traceId` and `spanId` for correlation.
 
 ## Files
 
-- `app.js` - Express app with tracing (Day 9) + metrics (Day 10) + logs (Day 11)
+- `app.js` - Express greeting app with tracing (Day 9) + metrics (Day 10) + logs (Day 11)
 - `instrumentation.js` - OpenTelemetry configuration for traces, metrics, and logs
 - `package.json` - Dependencies
 

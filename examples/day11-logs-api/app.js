@@ -1,237 +1,144 @@
 // app.js
 const express = require('express');
-const { trace, metrics, logs, SpanStatusCode } = require('@opentelemetry/api');
+const { trace, metrics } = require('@opentelemetry/api');
+const { logs } = require('@opentelemetry/api-logs');
 
 const app = express();
-app.use(express.json());
 
 // Get a tracer (from Day 9)
-const tracer = trace.getTracer('order-service', '1.0.0');
+const tracer = trace.getTracer('greeting-service', '1.0.0');
 
 // Get a meter (from Day 10)
-const meter = metrics.getMeter('order-service', '1.0.0');
+const meter = metrics.getMeter('greeting-service', '1.0.0');
 
 // Get a logger (NEW for Day 11)
-const logger = logs.getLogger('order-service', '1.0.0');
+const logger = logs.getLogger('greeting-service', '1.0.0');
 
 // =========================
 // METRICS (from Day 10)
 // =========================
 
 // Create counters once at startup
-const ordersTotal = meter.createCounter("orders_processed_total", {
-  description: "Total number of orders processed (success + failed)",
+const greetingsTotal = meter.createCounter("greetings_sent_total", {
+  description: "Total number of greetings sent",
 });
 
-const ordersSuccess = meter.createCounter("orders_success_total", {
-  description: "Total number of successful orders",
+const requestsTotal = meter.createCounter("requests_received_total", {
+  description: "Total number of requests received",
 });
 
-const ordersFailed = meter.createCounter("orders_failed_total", {
-  description: "Total number of failed orders",
+const popularNames = meter.createCounter("popular_names_total", {
+  description: "Count of greetings by name",
+});
+
+const greetingErrors = meter.createCounter("greeting_errors_total", {
+  description: "Total number of greeting errors",
 });
 
 // =========================
-// HELPER FUNCTIONS (same as Days 9 & 10)
+// GREETING ENDPOINT (building on Days 9 & 10)
 // =========================
 
-async function validateOrder(orderData) {
-  await new Promise(resolve => setTimeout(resolve, 50));
+app.get('/hello/:name', (req, res) => {
+  // Count this request (from Day 10)
+  requestsTotal.add(1);
   
-  if (!orderData.items || orderData.items.length === 0) {
-    throw new Error('Order must contain items');
-  }
-  if (!orderData.userId) {
-    throw new Error('Order must have a userId');
-  }
-}
-
-async function checkInventory(items) {
-  await new Promise(resolve => setTimeout(resolve, 200));
-  return { allAvailable: true, unavailableItems: [] };
-}
-
-async function calculateShipping(orderData) {
-  await new Promise(resolve => setTimeout(resolve, 100));
-  return 12.99;
-}
-
-async function processPayment(amount, method) {
-  await new Promise(resolve => setTimeout(resolve, 500));
-  
-  // 20% chance of failure for demo purposes
-  if (Math.random() < 0.2) {
-    throw new Error('Payment declined: insufficient funds');
-  }
-  
-  return {
-    authId: 'auth_' + Math.random().toString(36).substring(2, 11),
-    status: 'approved'
-  };
-}
-
-async function saveOrder(orderData) {
-  await new Promise(resolve => setTimeout(resolve, 150));
-  return 'ord_' + Math.random().toString(36).substring(2, 11);
-}
-
-// =========================
-// ORDER ENDPOINT (building on Days 9 & 10)
-// =========================
-
-app.post('/orders', async (req, res) => {
-  return tracer.startActiveSpan('process_order', async (orderSpan) => {
-    const orderData = req.body;
+  // Create a span for our greeting operation (from Day 9)
+  tracer.startActiveSpan('create_greeting', (span) => {
+    const name = req.params.name;
     
-    // Add attributes to span (from Day 9)
-    orderSpan.setAttribute('order.item_count', orderData.items?.length || 0);
-    orderSpan.setAttribute('user.id', orderData.userId);
+    // Add attributes to describe what we're doing (from Day 9)
+    span.setAttribute('user.name', name);
+    span.setAttribute('greeting.type', 'personal');
     
-    // LOG: Order started (NEW for Day 11)
+    // LOG: Greeting started (NEW for Day 11)
     logger.emit({
       severityText: "INFO",
-      body: "Order processing started",
+      body: "Greeting processing started",
       attributes: {
-        "user.id": orderData.userId,
-        "order.item_count": orderData.items?.length || 0,
+        "user.name": name,
+        "greeting.type": "personal",
       },
     });
     
-    try {
-      // Step 1: Validate (same as before)
-      await tracer.startActiveSpan('validate_order', async (span) => {
-        try {
-          await validateOrder(orderData);
-          span.setStatus({ code: SpanStatusCode.OK });
-        } catch (error) {
-          span.recordException(error);
-          span.setStatus({ code: SpanStatusCode.ERROR, message: error.message });
-          throw error;
-        } finally {
-          span.end();
-        }
-      });
+    // Add an event to mark when we start processing (from Day 9)
+    span.addEvent('processing_started');
+    
+    // Simple validation (NEW - to demonstrate error logging)
+    if (name.length > 50) {
+      // Count this error (NEW for Day 11)
+      greetingErrors.add(1);
       
-      // Step 2: Check inventory (same as before)
-      const inventoryResult = await tracer.startActiveSpan('check_inventory', async (span) => {
-        try {
-          const result = await checkInventory(orderData.items);
-          span.setStatus({ code: SpanStatusCode.OK });
-          return result;
-        } catch (error) {
-          span.recordException(error);
-          span.setStatus({ code: SpanStatusCode.ERROR });
-          throw error;
-        } finally {
-          span.end();
-        }
-      });
-      
-      if (!inventoryResult.allAvailable) {
-        throw new Error('Some items are out of stock');
-      }
-      
-      // Step 3: Calculate shipping (same as before)
-      const shippingCost = await tracer.startActiveSpan('calculate_shipping', async (span) => {
-        try {
-          const cost = await calculateShipping(orderData);
-          span.setStatus({ code: SpanStatusCode.OK });
-          return cost;
-        } catch (error) {
-          span.recordException(error);
-          span.setStatus({ code: SpanStatusCode.ERROR });
-          throw error;
-        } finally {
-          span.end();
-        }
-      });
-      
-      // Step 4: Process payment (same as before)
-      const totalAmount = (orderData.total || 100) + shippingCost;
-      
-      await tracer.startActiveSpan('process_payment', async (span) => {
-        try {
-          const paymentResult = await processPayment(totalAmount, orderData.paymentMethod);
-          span.setStatus({ code: SpanStatusCode.OK });
-        } catch (error) {
-          span.recordException(error);
-          span.setStatus({ code: SpanStatusCode.ERROR, message: 'Payment failed' });
-          throw error;
-        } finally {
-          span.end();
-        }
-      });
-      
-      // Step 5: Save order (same as before)
-      const orderId = await tracer.startActiveSpan('save_order', async (span) => {
-        try {
-          const id = await saveOrder(orderData);
-          span.setStatus({ code: SpanStatusCode.OK });
-          return id;
-        } catch (error) {
-          span.recordException(error);
-          span.setStatus({ code: SpanStatusCode.ERROR });
-          throw error;
-        } finally {
-          span.end();
-        }
-      });
-      
-      // SUCCESS! Count it (from Day 10) and log it (NEW for Day 11)
-      ordersTotal.add(1);        
-      ordersSuccess.add(1);      
-      
-      // LOG: Order completed successfully (NEW for Day 11)
-      logger.emit({
-        severityText: "INFO",
-        body: "Order processing completed successfully",
-        attributes: {
-          "order.id": orderId,
-          "user.id": orderData.userId,
-          "order.total": totalAmount,
-        },
-      });
-      
-      orderSpan.setStatus({ code: SpanStatusCode.OK });
-      
-      res.status(201).json({
-        orderId,
-        status: 'created',
-        total: totalAmount
-      });
-      
-    } catch (error) {
-      // FAILURE! Count it (from Day 10) and log it (NEW for Day 11)
-      ordersTotal.add(1);        
-      ordersFailed.add(1);       
-      
-      // LOG: Order failed (NEW for Day 11)
+      // LOG: Greeting failed (NEW for Day 11)
       logger.emit({
         severityText: "ERROR",
-        body: "Order processing failed",
+        body: "Greeting processing failed",
         attributes: {
-          "user.id": orderData.userId,
-          "error.message": error.message,
+          "user.name": name,
+          "error.message": "name too long",
+          "name.length": name.length,
         },
       });
       
-      orderSpan.recordException(error);
-      orderSpan.setStatus({ code: SpanStatusCode.ERROR, message: error.message });
+      span.recordException(new Error('Name too long'));
+      span.setStatus({ code: 2, message: 'Name exceeds maximum length' }); // ERROR status
+      span.end();
       
-      res.status(400).json({ error: error.message });
-    } finally {
-      orderSpan.end();
+      return res.status(400).json({ 
+        error: 'Name too long. Maximum 50 characters allowed.',
+        provided_length: name.length
+      });
     }
+    
+    // Simulate some processing time
+    setTimeout(() => {
+      // Create a nested span for message formatting (from Day 9)
+      tracer.startActiveSpan('format_message', (formatSpan) => {
+        const message = `Hello, ${name}! Welcome to OpenTelemetry tracing, metrics, and logs.`;
+        
+        formatSpan.setAttribute('message.length', message.length);
+        formatSpan.addEvent('message_formatted');
+        formatSpan.end();
+        
+        // Count this greeting (from Day 10)
+        greetingsTotal.add(1);
+        
+        // Count this specific name (from Day 10)
+        popularNames.add(1, { name: name });
+        
+        // LOG: Greeting completed successfully (NEW for Day 11)
+        logger.emit({
+          severityText: "INFO",
+          body: "Greeting processing completed successfully",
+          attributes: {
+            "user.name": name,
+            "message.length": message.length,
+            "processing.duration_ms": 100, // We know it's ~100ms
+          },
+        });
+        
+        // Add final attributes and events to parent span (from Day 9)
+        span.setAttribute('response.message', message);
+        span.addEvent('processing_completed');
+        span.setStatus({ code: 1 }); // OK status
+        span.end();
+        
+        res.json({ 
+          message,
+          timestamp: new Date().toISOString()
+        });
+      });
+    }, 100);
   });
 });
 
-// Health check endpoint
+// Health check endpoint (no manual instrumentation)
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
 const PORT = 3000;
 app.listen(PORT, () => {
-  console.log(`Order service listening on port ${PORT}`);
-  console.log('Send POST requests to /orders to see logs in action');
+  console.log(`Greeting service listening on port ${PORT}`);
+  console.log('Logs will be sent to OTLP endpoint, metrics shown in console every 10 seconds');
 });
