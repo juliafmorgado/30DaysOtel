@@ -1,4 +1,3 @@
-// app.js
 const express = require('express');
 const { trace, metrics } = require('@opentelemetry/api');
 
@@ -32,7 +31,7 @@ const popularNames = meter.createCounter("popular_names_total", {
 // =========================
 
 app.get('/hello/:name', (req, res) => {
-  // Count this request
+  // Count every request received
   requestsTotal.add(1);
   
   // Create a span for our greeting operation (from Day 9)
@@ -56,10 +55,10 @@ app.get('/hello/:name', (req, res) => {
         formatSpan.addEvent('message_formatted');
         formatSpan.end();
         
-        // Count this greeting (NEW for Day 10)
+        // Count every greeting sent (NEW for Day 10)
         greetingsTotal.add(1);
         
-        // Count this specific name (NEW for Day 10)
+        // Count this specific name (NEW for Day 10) -> These are counters with labels (dimensions)
         popularNames.add(1, { name: name });
         
         // Add final attributes and events to parent span (from Day 9)
@@ -85,5 +84,5 @@ const PORT = 3000;
 app.listen(PORT, () => {
   console.log(`Greeting service listening on port ${PORT}`);
   console.log('Try: curl http://localhost:3000/hello/Alice');
-  console.log('Metrics will be exported every 30 seconds');
+  console.log('Metrics will be exported every 10 seconds');
 });

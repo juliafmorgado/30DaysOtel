@@ -56,26 +56,42 @@ This example demonstrates basic metrics using OpenTelemetry, building on the gre
    - Click "Find Traces"
 
 6. **View metrics in console:**
-   - Metrics are exported every 30 seconds
-   - Check the console output for metric data
+   - Metrics are exported every 10 seconds to your terminal
+   - Look for metrics named `greetings_sent_total`, `requests_received_total`, and `popular_names_total`
+   - You'll also see Node.js runtime metrics (these come automatically)
 
 ## What you'll see
 
 - **Traces**: Individual greeting flows in Jaeger (from Day 9)
-- **Metrics**: Counters showing total greetings, popular names, etc.
+- **Metrics**: Counters in your terminal showing total greetings, popular names, etc.
 - **Labels**: `popular_names_total{name="Alice"} = 3` shows Alice was requested 3 times
 
 ## Expected Metrics Output
 
-```json
+You'll see output like this in your terminal:
+
+```javascript
 {
-  "greetings_sent_total": 15,
-  "requests_received_total": 15,
-  "popular_names_total": [
-    {"name": "Alice", "value": 3},
-    {"name": "Bob", "value": 1},
-    {"name": "Charlie", "value": 1},
-    {"name": "User1", "value": 1}
+  descriptor: {
+    name: 'greetings_sent_total',
+    description: 'Total number of greetings sent',
+    unit: '',
+    type: 'COUNTER'
+  },
+  dataPoints: [ { attributes: {}, value: 15 } ]
+}
+
+{
+  descriptor: {
+    name: 'popular_names_total',
+    description: 'Count of greetings by name',
+    unit: '',
+    type: 'COUNTER'
+  },
+  dataPoints: [
+    { attributes: { name: 'Alice' }, value: 3 },
+    { attributes: { name: 'Bob' }, value: 1 },
+    { attributes: { name: 'Charlie' }, value: 1 }
   ]
 }
 ```

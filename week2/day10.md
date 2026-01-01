@@ -106,8 +106,7 @@ Update `instrumentation.js` to export metrics alongside traces:
 const { NodeSDK } = require("@opentelemetry/sdk-node");
 const { getNodeAutoInstrumentations } = require("@opentelemetry/auto-instrumentations-node");
 const { OTLPTraceExporter } = require("@opentelemetry/exporter-trace-otlp-http");
-const { OTLPMetricExporter } = require("@opentelemetry/exporter-metrics-otlp-http");
-const { PeriodicExportingMetricReader } = require("@opentelemetry/sdk-metrics");
+const { ConsoleMetricExporter, PeriodicExportingMetricReader } = require("@opentelemetry/sdk-metrics");
 const { resourceFromAttributes } = require("@opentelemetry/resources");
 const { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } = require("@opentelemetry/semantic-conventions");
 
@@ -124,10 +123,8 @@ const sdk = new NodeSDK({
   
   // Metrics (NEW for Day 10)
   metricReader: new PeriodicExportingMetricReader({
-    exporter: new OTLPMetricExporter({
-      url: "http://localhost:4318/v1/metrics",
-    }),
-    exportIntervalMillis: 30000, // Export every 30 seconds
+    exporter: new ConsoleMetricExporter(),
+    exportIntervalMillis: 10000, // Export every 10 seconds for faster feedback
   }),
   
   instrumentations: [getNodeAutoInstrumentations()],
@@ -138,8 +135,10 @@ console.log("OpenTelemetry initialized with traces and metrics");
 ```
 
 **What's new:**
-- **OTLPMetricExporter** - Sends metrics to the same OTLP endpoint as traces
-- **metricReader** - Configures how metrics are exported (every 30 seconds by default)
+- **ConsoleMetricExporter** - Shows metrics in your terminal (for learning)
+- **PeriodicExportingMetricReader** - Exports metrics every 10 seconds
+
+> **Note:** We're using `ConsoleMetricExporter` for learning purposes. In production, you'd use `OTLPMetricExporter` to send metrics to observability backends like Dash0, or Prometheus. We'll explore metrics backends on Day 15.
 
 ---
 
@@ -182,7 +181,7 @@ const popularNames = meter.createCounter("popular_names_total", {
 // =========================
 
 app.get('/hello/:name', (req, res) => {
-  // Count this request
+  // Count every request received
   requestsTotal.add(1);
   
   // Create a span for our greeting operation (from Day 9)
@@ -206,10 +205,10 @@ app.get('/hello/:name', (req, res) => {
         formatSpan.addEvent('message_formatted');
         formatSpan.end();
         
-        // Count this greeting (NEW for Day 10)
+        // Count every greeting sent (NEW for Day 10)
         greetingsTotal.add(1);
         
-        // Count this specific name (NEW for Day 10)
+        // Count this specific name (NEW for Day 10) -> These are counters with labels (dimensions)
         popularNames.add(1, { name: name });
         
         // Add final attributes and events to parent span (from Day 9)
@@ -235,15 +234,19 @@ const PORT = 3000;
 app.listen(PORT, () => {
   console.log(`Greeting service listening on port ${PORT}`);
   console.log('Try: curl http://localhost:3000/hello/Alice');
-  console.log('Metrics will be exported every 30 seconds');
+  console.log('Metrics will be exported every 10 seconds');
 });
 ```
 
 **What's new for Day 10:**
-- **`metrics.getMeter()`** - Get a meter (like getting a tracer)
-- **`meter.createCounter()`** - Create counters to track events
-- **`counter.add(1)`** - Increment counters when events happen
-- **Labels** - `{ name: name }` adds dimensions to metrics
+**Meter:** Your metrics factory - `metrics.getMeter()`
+**Counters:** Count events that happen - `meter.createCounter()`
+**Adding values:** Increment counters - `counter.add(1)`
+**Labels:** Add dimensions to metrics - `{ name: "Alice" }`
+**Export:** Metrics are sent automatically every 10 seconds
+
+---
+
 
 ---
 
@@ -277,120 +280,61 @@ for i in {1..10}; do
 done
 ```
 
-**View the trace in Jaeger on http://localhost:16686**
+**You should our custom metrics in the terminal:**
+![Terminal Metrics example](images/day10-metrics.png)
 
-**What happens:**
-- **Traces** go to Jaeger (like Day 9)
-- **Metrics** are collected and exported every 30 seconds
-- You'll see console output showing metrics being sent
+**What this tells us:**
+- We've sent 15 greetings total - `greetings_sent_total`
+- Alice was the most popular name (3 requests) - `popular_names_total`
+- Bob was requested once
 
----
+**Note:** You'll see many more metrics in your terminal (Node.js runtime metrics, HTTP metrics, etc.). These come from auto-instrumentation. Focus on finding the metrics with names you created: `greetings_sent_total`, `requests_received_total`, and `popular_names_total`.
 
-## Understanding what we created
-
-### 1. Simple counters
-
-```javascript
-greetingsTotal.add(1);        // Counts every greeting sent
-requestsTotal.add(1);         // Counts every request received
-```
-
-These create metrics like:
-- `greetings_sent_total = 15` (we've sent 15 greetings)
-- `requests_received_total = 15` (we've received 15 requests)
-
-### 2. Counters with labels (dimensions)
-
-```javascript
-popularNames.add(1, { name: name });
-```
-
-This creates metrics like:
-- `popular_names_total{name="Alice"} = 3` (Alice was requested 3 times)
-- `popular_names_total{name="Bob"} = 1` (Bob was requested 1 time)
-- `popular_names_total{name="Charlie"} = 1` (Charlie was requested 1 time)
-
-**Labels let you slice and dice your data!**
+**You can also view the trace in Jaeger on http://localhost:16686**
 
 ---
 
-## Viewing metrics (simple approach)
-> **Note:** Jaeger is great for traces but not ideal for viewing metrics. For proper metrics visualization, you'd typically use Prometheus + Grafana or similar tools. We'll explore metrics backends on Day 15.
+## Exercises to try
+
+### Exercise 1: Add a message length counter
+
+Track the total characters in all messages sent:
 
 <details>
-<summary>For learning, click here to use ConsoleMetricExporter to see metrics directly in the terminal.</summary>
-
-Update your `instrumentation.js` to use console output instead of OTLP:
+<summary>Click to see the solution</summary>
 
 ```javascript
-// instrumentation.js
-const { NodeSDK } = require("@opentelemetry/sdk-node");
-const { getNodeAutoInstrumentations } = require("@opentelemetry/auto-instrumentations-node");
-const { OTLPTraceExporter } = require("@opentelemetry/exporter-trace-otlp-http");
-const { ConsoleMetricExporter, PeriodicExportingMetricReader } = require("@opentelemetry/sdk-metrics");
-const { resourceFromAttributes } = require("@opentelemetry/resources");
-const { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } = require("@opentelemetry/semantic-conventions");
-
-const sdk = new NodeSDK({
-  resource: resourceFromAttributes({
-    [ATTR_SERVICE_NAME]: "greeting-service",
-    [ATTR_SERVICE_VERSION]: "1.0.0",
-  }),
-  
-  // Traces to Jaeger (from Day 9)
-  traceExporter: new OTLPTraceExporter({
-    url: "http://localhost:4318/v1/traces",
-  }),
-  
-  // Metrics to console (for learning)
-  metricReader: new PeriodicExportingMetricReader({
-    exporter: new ConsoleMetricExporter(),
-    exportIntervalMillis: 10000, // Export every 10 seconds for faster feedback
-  }),
-  
-  instrumentations: [getNodeAutoInstrumentations()],
+// Add this with other counters
+const messageChars = meter.createCounter("message_characters_total", {
+  description: "Total characters in all messages sent",
 });
 
-sdk.start();
-console.log("OpenTelemetry initialized with traces and metrics");
+// In the format_message span
+const message = `Hello, ${name}! Welcome to OpenTelemetry tracing and metrics.`;
+
+// Add this line
+messageChars.add(message.length);
 ```
 
-**What changed:**
-- **ConsoleMetricExporter** instead of OTLPMetricExporter for metrics
-- **10 seconds** instead of 30 for faster feedback
-- Traces still go to Jaeger, metrics show in console
+</details>
 
-Now you'll see clean metrics output like:
+### Exercise 2: Track processing time ranges
 
+Count how many requests take different time ranges:
+
+<details>
+<summary>Click to see the solution</summary>
+
+```javascript
+// Add this counter
+const processingTime = meter.createCounter("processing_time_ranges_total", {
+  description: "Count of requests by processing time range",
+});
+
+// In the setTimeout (after 100ms delay)
+const timeRange = "100-200ms"; // Since we know it's ~100ms
+processingTime.add(1, { range: timeRange });
 ```
-{
-  descriptor: {
-    name: 'greetings_sent_total',
-    description: 'Total number of greetings sent',
-    unit: '',
-    type: 'COUNTER'
-  },
-  dataPoints: [ { attributes: {}, value: 15 } ]
-}
-
-{
-  descriptor: {
-    name: 'popular_names_total',
-    description: 'Count of greetings by name',
-    unit: '',
-    type: 'COUNTER'
-  },
-  dataPoints: [
-    { attributes: { name: 'Alice' }, value: 3 },
-    { attributes: { name: 'Bob' }, value: 1 },
-    { attributes: { name: 'Charlie' }, value: 1 }
-  ]
-}
-```
-**What this tells us:**
-- We've sent 15 greetings total
-- Alice was the most popular name (3 requests)
-- Bob was requested once
 
 </details>
 
@@ -418,6 +362,6 @@ counter.add(1);                    // Count an event
 counter.add(1, { type: 'error' }); // Count with context
 ```
 
-**Tomorrow (Day 11) we'll learn the **Logs API** to complete the basic trio of traces, metrics, and logs.
+Tomorrow (Day 11) we'll learn the **Logs API** to complete the basic trio of traces, metrics, and logs.
 
 See you on Day 11!
