@@ -1,10 +1,10 @@
 # Day 12 – Context Propagation: Understanding How Traces Stay Connected
 
-Yesterday we learned the Logs API and saw how logs automatically get trace and span IDs for correlation. Today we'll understand **context propagation** - the simple mechanism that makes this magic happen.
+Yesterday we learned the Logs API and saw how logs automatically get trace and span IDs for correlation. Today we'll understand **context propagation** and see how this mechanism makes all of it happen.
 
 > **Working example:** The complete code for this tutorial is available in [`examples/day12-context-propagation/`](../examples/day12-context-propagation/)
 >
-> **Note:** This builds on Days 9-11. If you haven't done those yet, start there: [`examples/day11-logs-api/`](../examples/day11-logs-api/)
+> **Note:** This builds on Days 9-11. If you haven't done those yet, start there: [`examples/day9-tracing-api/`](../examples/day9-tracing-api/)
 
 ---
 
@@ -22,10 +22,10 @@ Today's focus is understanding **how** this works and **when** it might break.
 
 ## What is Context Propagation?
 
-Context propagation is how OpenTelemetry keeps track of "which trace am I currently in?" as your code executes.
+Context propagation is how OpenTelemetry keeps track of "which trace am I currently in?" as the code executes.
 
 **Think of it like this:**
-- Your code is like a conversation
+- Our code is like a conversation
 - Context is like "who's speaking right now?"
 - Propagation is how we remember who's speaking as the conversation continues
 
@@ -64,7 +64,7 @@ app.use((req, res, next) => {
 });
 ```
 
-**The key insight:** Most of the time, context propagation "just works" and you don't need to think about it.
+Most of the time, context propagation "just works" and you don't need to think about it.
 
 ---
 
@@ -155,19 +155,17 @@ Create `instrumentation.js`:
 const { NodeSDK } = require("@opentelemetry/sdk-node");
 const { getNodeAutoInstrumentations } = require("@opentelemetry/auto-instrumentations-node");
 const { OTLPTraceExporter } = require("@opentelemetry/exporter-trace-otlp-http");
-const { Resource } = require("@opentelemetry/resources");
+const { resourceFromAttributes } = require("@opentelemetry/resources");
 const { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } = require("@opentelemetry/semantic-conventions");
 
 const sdk = new NodeSDK({
-  resource: new Resource({
-    [ATTR_SERVICE_NAME]: "context-demo",
+  resource: resourceFromAttributes({
+    [ATTR_SERVICE_NAME]: "greeting-service",
     [ATTR_SERVICE_VERSION]: "1.0.0",
   }),
-  
   traceExporter: new OTLPTraceExporter({
     url: "http://localhost:4318/v1/traces",
   }),
-  
   instrumentations: [getNodeAutoInstrumentations()],
 });
 
@@ -247,35 +245,6 @@ function brokenPropagationExample() {
 }
 
 // =========================
-// EXAMPLE 3: Fixed propagation (manual solution)
-// =========================
-
-function fixedPropagationExample() {
-  return tracer.startActiveSpan("parent_operation", (parentSpan) => {
-    parentSpan.setAttribute("example", "fixed");
-    
-    // Capture the current context
-    const currentContext = context.active();
-    
-    setTimeout(() => {
-      // Restore the context in the callback
-      context.with(currentContext, () => {
-        tracer.startActiveSpan("fixed_child", (childSpan) => {
-          childSpan.setAttribute("solution", "context.with");
-          
-          // Now this span IS a child of parent_operation!
-          
-          childSpan.end();
-        });
-      });
-    }, 100);
-    
-    parentSpan.end();
-    return "Fixed propagation example started (check Jaeger in 1 second)";
-  });
-}
-
-// =========================
 // API ENDPOINTS
 // =========================
 
@@ -303,18 +272,6 @@ app.get("/broken", async (req, res) => {
   }
 });
 
-app.get("/fixed", async (req, res) => {
-  try {
-    const result = fixedPropagationExample();
-    res.json({ 
-      result, 
-      message: "Check Jaeger - fixed_child should be properly nested under parent" 
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
 // Health check
 app.get("/health", (req, res) => {
   res.json({ status: "ok" });
@@ -323,14 +280,8 @@ app.get("/health", (req, res) => {
 const PORT = 3000;
 app.listen(PORT, () => {
   console.log(`Context propagation demo listening on port ${PORT}`);
-  console.log("\nTry these endpoints:");
-  console.log("- GET /automatic (context works automatically - the normal case)");
-  console.log("- GET /broken (context gets lost - shows the problem)");
-  console.log("- GET /fixed (context manually restored - shows the solution)");
-  console.log("\nOpen Jaeger at http://localhost:16686 to see the differences!");
 });
 ```
-
 ---
 
 ## Step 4: Run and test the examples
@@ -356,9 +307,6 @@ curl http://localhost:3000/automatic
 
 # 2. Broken propagation (child span will be orphaned)
 curl http://localhost:3000/broken
-
-# 3. Fixed propagation (child span properly connected)
-curl http://localhost:3000/fixed
 ```
 
 ---
@@ -369,55 +317,23 @@ Open http://localhost:16686 and look for traces from the `context-demo` service.
 
 **What you'll see:**
 
-### Automatic Propagation ✅
-```
-GET /automatic
-└─ parent_operation
-   └─ child_operation
-      └─ grandchild_operation
-```
-Perfect family tree - context flowed automatically.
+### Automatic Propagation
 
-### Broken Propagation ❌
-```
-GET /broken
-└─ parent_operation
+![Automatic context propagation trace example](images/day12-automatic.png)
 
-orphaned_child (separate trace!)
-```
-The `orphaned_child` span started a completely new trace because it lost context.
+- You see a beautiful nested trace structure
+- `parent_operation` → `child_operation` → `grandchild_operation`
+- Everything is connected in one trace tree
+- This shows context propagation working automatically
 
-### Fixed Propagation ✅
-```
-GET /fixed
-└─ parent_operation
-   └─ fixed_child
-```
-Using `context.with()` restored the parent-child relationship.
+### Broken Propagation
 
----
+![Broken context propagation trace example](images/day12-broken.png)
 
-## The Simple Fix: context.with()
-
-When context propagation breaks, the fix is usually simple:
-
-```javascript
-// 1. Capture the current context
-const currentContext = context.active();
-
-// 2. Later, in a callback, restore it
-setTimeout(() => {
-  context.with(currentContext, () => {
-    // Code here sees the captured context
-    tracer.startActiveSpan('child', (span) => {
-      // This span will be properly connected
-      span.end();
-    });
-  });
-}, 1000);
-```
-
-**Think of it as:** "Remember where we were, then go back there later."
+- You see `parent_operation` but it's much shorter
+- The `orphaned_child` span is completely missing from this trace
+- That's because it became a separate, disconnected trace
+- This shows context propagation breaking
 
 ---
 
@@ -453,12 +369,11 @@ setTimeout(() => {
 
 ## What I'm taking into Day 13
 
-Today we learned **context propagation basics** - how trace context flows through your application:
+Today we learned that **context propagation** is how trace context flows through our application:
 
 **Key concepts:**
 - Context propagation usually works automatically
 - It can break with setTimeout and event emitters
-- The fix is usually `context.with()`
 - Most beginners don't need to worry about this
 
 **Practical skills:**
@@ -466,6 +381,6 @@ Today we learned **context propagation basics** - how trace context flows throug
 - Spotting broken context propagation in Jaeger
 - Using `context.active()` and `context.with()` for simple fixes
 
-**Tomorrow (Day 13):** We'll learn **basic SDK concepts** - samplers, processors, and exporters that control how telemetry flows through OpenTelemetry.
+Tomorrow (Day 13) we'll learn **basic SDK concepts** - samplers, processors, and exporters that control how telemetry flows through OpenTelemetry.
 
 See you on Day 13!

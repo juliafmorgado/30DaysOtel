@@ -1,4 +1,3 @@
-// app.js
 const express = require("express");
 const { trace, context } = require("@opentelemetry/api");
 
@@ -63,35 +62,6 @@ function brokenPropagationExample() {
 }
 
 // =========================
-// EXAMPLE 3: Fixed propagation (manual solution)
-// =========================
-
-function fixedPropagationExample() {
-  return tracer.startActiveSpan("parent_operation", (parentSpan) => {
-    parentSpan.setAttribute("example", "fixed");
-    
-    // Capture the current context
-    const currentContext = context.active();
-    
-    setTimeout(() => {
-      // Restore the context in the callback
-      context.with(currentContext, () => {
-        tracer.startActiveSpan("fixed_child", (childSpan) => {
-          childSpan.setAttribute("solution", "context.with");
-          
-          // Now this span IS a child of parent_operation!
-          
-          childSpan.end();
-        });
-      });
-    }, 100);
-    
-    parentSpan.end();
-    return "Fixed propagation example started (check Jaeger in 1 second)";
-  });
-}
-
-// =========================
 // API ENDPOINTS
 // =========================
 
@@ -119,18 +89,6 @@ app.get("/broken", async (req, res) => {
   }
 });
 
-app.get("/fixed", async (req, res) => {
-  try {
-    const result = fixedPropagationExample();
-    res.json({ 
-      result, 
-      message: "Check Jaeger - fixed_child should be properly nested under parent" 
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
 // Health check
 app.get("/health", (req, res) => {
   res.json({ status: "ok" });
@@ -139,9 +97,4 @@ app.get("/health", (req, res) => {
 const PORT = 3000;
 app.listen(PORT, () => {
   console.log(`Context propagation demo listening on port ${PORT}`);
-  console.log("\nTry these endpoints:");
-  console.log("- GET /automatic (context works automatically - the normal case)");
-  console.log("- GET /broken (context gets lost - shows the problem)");
-  console.log("- GET /fixed (context manually restored - shows the solution)");
-  console.log("\nOpen Jaeger at http://localhost:16686 to see the differences!");
 });

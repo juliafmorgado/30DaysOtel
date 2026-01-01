@@ -6,13 +6,11 @@ This example demonstrates basic context propagation concepts using OpenTelemetry
 
 - **Automatic context propagation** (the normal, happy case)
 - **Broken context propagation** (when setTimeout breaks the connection)
-- **Manual context propagation** (how to fix broken connections)
 
 ## Context propagation scenarios
 
 1. **Automatic** - async/await preserves context (works great)
 2. **Broken** - setTimeout loses context (creates separate traces)
-3. **Fixed** - using `context.with()` to restore connections
 
 ## Quick Start
 
@@ -41,9 +39,6 @@ This example demonstrates basic context propagation concepts using OpenTelemetry
    
    # Test broken propagation (child span will be orphaned)
    curl http://localhost:3000/broken
-   
-   # Test fixed propagation (child span properly connected)
-   curl http://localhost:3000/fixed
    ```
 
 5. **View traces in Jaeger:**
@@ -71,13 +66,6 @@ orphaned_child (separate trace!)
 ```
 The child span starts a new trace because context was lost.
 
-### Fixed Propagation ✅
-```
-GET /fixed
-└─ parent_operation
-   └─ fixed_child
-```
-Using `context.with()` restored the parent-child relationship.
 
 ## Key Learning Points
 
