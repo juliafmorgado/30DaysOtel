@@ -239,11 +239,11 @@ app.listen(PORT, () => {
 ```
 
 **What's new for Day 10:**
-**Meter:** Your metrics factory - `metrics.getMeter()`
-**Counters:** Count events that happen - `meter.createCounter()`
-**Adding values:** Increment counters - `counter.add(1)`
-**Labels:** Add dimensions to metrics - `{ name: "Alice" }`
-**Export:** Metrics are sent automatically every 10 seconds
+- **Meter:** Your metrics factory - `metrics.getMeter()`
+- **Counters:** Count events that happen - `meter.createCounter()`
+- **Adding values:** Increment counters - `counter.add(1)`
+- **Labels:** Add dimensions to metrics - `{ name: "Alice" }`
+- **Export:** Metrics are sent automatically every 10 seconds
 
 ---
 
@@ -281,6 +281,7 @@ done
 ```
 
 **You should our custom metrics in the terminal:**
+
 ![Terminal Metrics example](images/day10-metrics.png)
 
 **What this tells us:**
