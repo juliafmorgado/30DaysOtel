@@ -1,0 +1,115 @@
+# Business Context Processors
+# Demonstrates adding business logic and context to telemetry data
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  # Add resource-level business context
+  resource:
+    attributes:
+      - key: business.unit
+        value: "e-commerce"
+        action: insert
+      - key: service.owner
+        value: "platform-team"
+        action: insert
+      - key: cost.center
+        value: "engineering"
+        action: insert
+  
+  # Add business attributes based on service
+  attributes/business-logic:
+    actions:
+      # Mark critical services
+      - key: business.critical
+        value: "true"
+        action: insert
+        include:
+          match_type: strict
+          services: ["payment-service", "user-service", "order-service"]
+      
+      # Add SLA information
+      - key: sla.target
+        value: "99.9"
+        action: insert
+        include:
+          match_type: strict
+          services: ["payment-service"]
+      
+      - key: sla.target
+        value: "99.5"
+        action: insert
+        include:
+          match_type: strict
+          services: ["user-service", "order-service"]
+      
+      # Add team ownership
+      - key: team.oncall
+        value: "platform-team"
+        action: insert
+        include:
+          match_type: strict
+          services: ["payment-service", "user-service"]
+      
+      - key: team.oncall
+        value: "product-team"
+        action: insert
+        include:
+          match_type: strict
+          services: ["recommendation-service", "search-service"]
+  
+  # Transform technical data into business metrics
+  transform/business-metrics:
+    trace_statements:
+      # Categorize request types
+      - context: span
+        statements:
+          - set(attributes["business.action"], "user_registration") where name == "POST /api/users"
+          - set(attributes["business.action"], "payment_processing") where name matches ".*payment.*"
+          - set(attributes["business.action"], "product_search") where name == "GET /api/products"
+      
+      # Add user tier information
+      - context: span
+        statements:
+          - set(attributes["user.tier"], "premium") where attributes["http.request.header.x-user-tier"] == "premium"
+          - set(attributes["user.tier"], "standard") where attributes["http.request.header.x-user-tier"] == "standard"
+          - set(attributes["user.tier"], "free") where attributes["http.request.header.x-user-tier"] == "free"
+      
+      # Calculate business impact
+      - context: span
+        statements:
+          - set(attributes["business.impact"], "high") where attributes["business.critical"] == "true" and attributes["http.status_code"] >= 500
+          - set(attributes["business.impact"], "medium") where attributes["business.critical"] == "true" and attributes["http.status_code"] >= 400
+          - set(attributes["business.impact"], "low") where attributes["business.critical"] != "true"
+  
+  # Batch processing
+  batch:
+    timeout: 1s
+    send_batch_size: 1024
+
+exporters:
+  logging:
+    loglevel: info
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [resource, attributes/business-logic, transform/business-metrics, batch]
+      exporters: [logging]
+    
+    metrics:
+      receivers: [otlp]
+      processors: [resource, attributes/business-logic, batch]
+      exporters: [logging]
+    
+    logs:
+      receivers: [otlp]
+      processors: [resource, attributes/business-logic, batch]
+      exporters: [logging]

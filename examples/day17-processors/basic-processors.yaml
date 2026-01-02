@@ -1,0 +1,57 @@
+# Basic Processors Configuration
+# Demonstrates essential processors every deployment needs
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  # 1. Batch processor (essential for production)
+  batch:
+    timeout: 1s
+    send_batch_size: 1024
+  
+  # 2. Add environment context
+  attributes:
+    actions:
+      - key: environment
+        value: production
+        action: insert
+      - key: team
+        value: platform
+        action: insert
+  
+  # 3. Filter out noise
+  filter:
+    traces:
+      span:
+        # Remove health checks
+        - 'name == "GET /health"'
+        - 'name == "GET /ready"'
+        # Remove 404s
+        - 'attributes["http.status_code"] == 404'
+
+exporters:
+  logging:
+    loglevel: info
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [filter, attributes, batch]  # Order matters!
+      exporters: [logging]
+    
+    metrics:
+      receivers: [otlp]
+      processors: [attributes, batch]
+      exporters: [logging]
+    
+    logs:
+      receivers: [otlp]
+      processors: [attributes, batch]
+      exporters: [logging]

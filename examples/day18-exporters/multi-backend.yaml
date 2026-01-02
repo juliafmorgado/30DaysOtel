@@ -1,0 +1,73 @@
+# Multi-Backend Exporter Configuration
+# Demonstrates sending data to multiple backends simultaneously
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+    timeout: 1s
+    send_batch_size: 1024
+  
+  attributes:
+    actions:
+      - key: environment
+        value: production
+        action: insert
+
+exporters:
+  # Modern OTLP backend (primary)
+  otlp/dash0:
+    endpoint: https://api.dash0.com:4317
+    headers:
+      authorization: "Bearer ${env:DASH0_TOKEN}"
+    compression: gzip
+    retry_on_failure:
+      enabled: true
+      initial_interval: 1s
+      max_interval: 30s
+  
+  # Legacy Jaeger for traces
+  jaeger:
+    endpoint: jaeger:14250
+    tls:
+      insecure: true
+  
+  # Prometheus for metrics
+  prometheus:
+    endpoint: "0.0.0.0:8889"
+    namespace: "myapp"
+    const_labels:
+      environment: "production"
+  
+  # Local backup
+  file/backup:
+    path: /var/log/otel/backup.json
+    rotation:
+      max_megabytes: 100
+      max_days: 7
+
+service:
+  pipelines:
+    # Traces go to multiple backends
+    traces:
+      receivers: [otlp]
+      processors: [attributes, batch]
+      exporters: [otlp/dash0, jaeger, file/backup]
+    
+    # Metrics go to multiple backends
+    metrics:
+      receivers: [otlp]
+      processors: [attributes, batch]
+      exporters: [otlp/dash0, prometheus]
+    
+    # Logs go to primary backend only
+    logs:
+      receivers: [otlp]
+      processors: [attributes, batch]
+      exporters: [otlp/dash0]
