@@ -1,0 +1,74 @@
+# Business Logic Transformations
+# This configuration adds business context and categorization to telemetry
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  transform/business-logic:
+    trace_statements:
+      - context: span
+        statements:
+          # Categorize business actions based on span names
+          - set(attributes["business.action"], "user_management") where name matches ".*user.*"
+          - set(attributes["business.action"], "payment_processing") where name matches ".*payment.*"
+          - set(attributes["business.action"], "order_fulfillment") where name matches ".*order.*"
+          - set(attributes["business.action"], "inventory_management") where name matches ".*inventory.*"
+          - set(attributes["business.action"], "customer_support") where name matches ".*support.*"
+          
+          # Calculate business impact based on action and status
+          - set(attributes["business.impact"], "critical") where attributes["business.action"] == "payment_processing" and attributes["http.status_code"] >= 500
+          - set(attributes["business.impact"], "high") where attributes["business.action"] == "user_management" and attributes["http.status_code"] >= 500
+          - set(attributes["business.impact"], "high") where attributes["business.action"] == "order_fulfillment" and attributes["http.status_code"] >= 500
+          - set(attributes["business.impact"], "medium") where attributes["http.status_code"] >= 400
+          - set(attributes["business.impact"], "low") where attributes["http.status_code"] < 400
+          
+          # Add SLA targets based on business action
+          - set(attributes["sla.target"], 99.9) where attributes["business.action"] == "payment_processing"
+          - set(attributes["sla.target"], 99.5) where attributes["business.action"] == "user_management"
+          - set(attributes["sla.target"], 99.0) where attributes["business.action"] == "order_fulfillment"
+          - set(attributes["sla.target"], 95.0) where attributes["business.action"] == "inventory_management"
+          - set(attributes["sla.target"], 90.0) where attributes["business.action"] == "customer_support"
+          
+          # Set priority flags for alerting
+          - set(attributes["alert.priority"], "P1") where attributes["business.impact"] == "critical"
+          - set(attributes["alert.priority"], "P2") where attributes["business.impact"] == "high"
+          - set(attributes["alert.priority"], "P3") where attributes["business.impact"] == "medium"
+          - set(attributes["alert.priority"], "P4") where attributes["business.impact"] == "low"
+          
+          # Add cost center information
+          - set(attributes["cost.center"], "payments") where attributes["business.action"] == "payment_processing"
+          - set(attributes["cost.center"], "operations") where attributes["business.action"] == "order_fulfillment"
+          - set(attributes["cost.center"], "customer_success") where attributes["business.action"] == "customer_support"
+          - set(attributes["cost.center"], "engineering") where attributes["business.action"] == "user_management"
+
+  batch:
+    timeout: 1s
+    send_batch_size: 1024
+
+exporters:
+  logging:
+    loglevel: info
+    sampling_initial: 10
+    sampling_thereafter: 100
+
+  otlp/backend:
+    endpoint: http://jaeger:4317
+    tls:
+      insecure: true
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [transform/business-logic, batch]
+      exporters: [logging, otlp/backend]
+
+  telemetry:
+    logs:
+      level: info

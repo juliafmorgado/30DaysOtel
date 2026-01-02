@@ -1,262 +1,249 @@
 # Day 19 – OTTL: Advanced Data Transformations
 
-Yesterday we learned about exporters and multi-backend strategies. Today we dive deep into **OTTL (OpenTelemetry Transformation Language)** - the powerful language that enables sophisticated data transformations in the Collector.
+Yesterday we learned about exporters and multi-backend strategies. Today we explore **OTTL (OpenTelemetry Transformation Language)**, this powerful way to modify your telemetry data before it gets exported.
 
-> **Working example:** Complete OTTL configurations are available in [`examples/day19-ottl/`](../examples/day19-ottl/)
-
----
-
-## What is OTTL?
-
-OTTL (OpenTelemetry Transformation Language) is a domain-specific language for transforming telemetry data. It's used primarily in the Transform processor to perform complex data manipulations that other processors can't handle.
-
-**Think of OTTL as SQL for telemetry data** - it lets us query, filter, and transform telemetry using a familiar syntax.
+> **Complete examples:** All OTTL configurations discussed today are available in [`examples/day19-ottl/`](../examples/day19-ottl/)
 
 ---
 
-## OTTL Basics: Contexts and Statements
+## What is OTTL and Why Do You Need It?
 
-### Contexts: Where OTTL Operates
+Imagine you're collecting traces from your application, but you realize:
+- Your span names are too technical: `POST /api/v1/users/create` 
+- You want business-friendly names: `user_registration`
+- You need to remove sensitive data like passwords from attributes
+- You want to add performance categories: "fast", "slow", "critical"
 
-OTTL operates on different contexts depending on the telemetry type:
+**OTTL (OpenTelemetry Transformation Language) solves these problems.** It's like having a smart filter that can read, modify, and enrich your telemetry data as it flows through the Collector.
+
+**Think of OTTL as "find and replace" on steroids** - but instead of just text, you can transform any part of your telemetry data based on conditions you define.
+
+---
+
+## How OTTL Works: The Basics
+
+OTTL works inside the **Transform processor** in your Collector configuration. Here's the simple pattern:
 
 ```yaml
 processors:
   transform:
-    # Trace contexts
     trace_statements:
-      - context: resource
-        statements: [...]
-      - context: scope
-        statements: [...]
       - context: span
-        statements: [...]
-    
-    # Metric contexts
-    metric_statements:
-      - context: resource
-        statements: [...]
-      - context: metric
-        statements: [...]
-      - context: datapoint
-        statements: [...]
-    
-    # Log contexts
-    log_statements:
-      - context: resource
-        statements: [...]
-      - context: log
-        statements: [...]
+        statements:
+          - set(name, "user_registration") where name == "POST /api/users"
 ```
 
-### Basic Statement Structure
+**What this does:**
+1. **Looks at each span** (`context: span`)
+2. **Finds spans** where the name equals "POST /api/users" (`where name == "POST /api/users"`)
+3. **Changes the name** to "user_registration" (`set(name, "user_registration")`)
 
-OTTL statements follow this pattern:
-```
-FUNCTION(arguments) WHERE condition
-```
+**The pattern is always:** `FUNCTION(what_to_change, new_value) WHERE condition`
 
-Examples:
+---
+
+## Understanding OTTL Contexts
+
+OTTL can work on different parts of your telemetry data. Think of contexts as "what am I looking at right now?"
+
+**For Traces:**
+- `resource` - Information about your service (service name, version)
+- `span` - Individual operations (HTTP requests, database calls)
+
+**For Metrics:**
+- `resource` - Service information
+- `metric` - The metric itself (name, description)
+- `datapoint` - Individual metric values
+
+**For Logs:**
+- `resource` - Service information  
+- `log` - Individual log entries
+
+**Most of the time, you'll work with `span` context** - that's where your application operations live.
+
+---
+
+## The Most Useful OTTL Functions
+
+### 1. set() - Change Values
+
+**What it does:** Changes or adds values to your telemetry data.
+
+**Common uses:**
+- Rename spans to be more business-friendly
+- Add new attributes based on existing data
+- Categorize operations
+
+**Examples:**
 ```yaml
-statements:
-  - set(name, "user_action") where name == "POST /api/users"
-  - set(attributes["priority"], "high") where attributes["user.tier"] == "premium"
-  - delete_key(attributes, "sensitive_data")
+# Make span names more readable
+- set(name, "user_registration") where name == "POST /api/users"
+
+# Add business categories
+- set(attributes["business_area"], "payments") where name matches ".*payment.*"
+
+# Add performance labels
+- set(attributes["speed"], "slow") where duration > 1000000000  # > 1 second
+```
+
+> **See full examples:** [`basic-transformations.yaml`](../examples/day19-ottl/basic-transformations.yaml)
+
+### 2. delete_key() - Remove Sensitive Data
+
+**What it does:** Removes attributes you don't want to keep.
+
+**Common uses:**
+- Remove passwords, credit card numbers, API keys
+- Clean up debug information in production
+- Remove temporary attributes
+
+**Examples:**
+```yaml
+# Remove sensitive information
+- delete_key(attributes, "user.password")
+- delete_key(attributes, "credit_card.number")
+
+# Remove debug info in production
+- delete_key(attributes, "debug.info") where resource.attributes["environment"] == "production"
+```
+
+### 3. String Functions - Text Manipulation
+
+**Concat()** - Combine text:
+```yaml
+# Create descriptive endpoint names
+- set(attributes["endpoint"], Concat([attributes["http.method"], " ", attributes["http.route"]], ""))
+```
+
+**Split()** - Break apart text:
+```yaml
+# Extract domain from email
+- set(attributes["user.domain"], Split(attributes["user.email"], "@")[1])
+```
+
+**Replace()** - Find and replace text:
+```yaml
+# Clean up service names
+- set(resource.attributes["service.name"], replace_pattern(resource.attributes["service.name"], "[-_]", "."))
 ```
 
 ---
 
-## Essential OTTL Functions
+## Real-World OTTL Use Cases
 
-### 1. Set Functions: Modifying Data
+### Use Case 1: Making Spans Business-Friendly
 
-**set()** - Set a value:
+**Problem:** Your spans have technical names like `POST /api/v1/users/create` but you want business names like `user_registration`.
+
+**Solution:** Use OTTL to rename spans based on patterns.
+
 ```yaml
 statements:
-  # Rename spans
+  - set(attributes["business.action"], "user_management") where name matches ".*user.*"
+  - set(attributes["business.action"], "payment_processing") where name matches ".*payment.*"
   - set(name, "user_registration") where name == "POST /api/users"
-  
-  # Add computed attributes
-  - set(attributes["request.size"], "large") where attributes["http.request.body.size"] > 1000000
-  
-  # Set status based on conditions
-  - set(status.code, 2) where attributes["http.status_code"] >= 500  # STATUS_CODE_ERROR
 ```
 
-**set_status()** - Set span status:
+> **See complete example:** [`business-logic.yaml`](../examples/day19-ottl/business-logic.yaml)
+
+### Use Case 2: Adding Performance Categories
+
+**Problem:** You want to quickly identify slow operations without looking at raw duration numbers.
+
+**Solution:** Add performance labels based on duration.
+
 ```yaml
 statements:
-  - set_status(2, "Request failed") where attributes["http.status_code"] >= 500
-  - set_status(1) where attributes["http.status_code"] >= 400  # STATUS_CODE_OK
+  - set(attributes["performance"], "fast") where duration < 100000000      # < 100ms
+  - set(attributes["performance"], "normal") where duration < 500000000    # < 500ms  
+  - set(attributes["performance"], "slow") where duration >= 500000000     # >= 500ms
 ```
 
-### 2. Delete Functions: Removing Data
+> **See complete example:** [`performance-classification.yaml`](../examples/day19-ottl/performance-classification.yaml)
 
-**delete_key()** - Remove attributes:
+### Use Case 3: Extracting User Information
+
+**Problem:** User information is buried in HTTP headers, but you want it as span attributes for easier filtering.
+
+**Solution:** Extract header data into proper attributes.
+
 ```yaml
 statements:
-  # Remove sensitive data
-  - delete_key(attributes, "user.password")
-  - delete_key(attributes, "credit_card.number")
-  
-  # Remove debug information in production
-  - delete_key(attributes, "debug.info") where resource.attributes["environment"] == "production"
+  - set(attributes["user.id"], attributes["http.request.header.x-user-id"]) where attributes["http.request.header.x-user-id"] != nil
+  - set(attributes["user.tier"], attributes["http.request.header.x-user-tier"]) where attributes["http.request.header.x-user-tier"] != nil
 ```
 
-**delete_matching_keys()** - Remove multiple keys by pattern:
+> **See complete example:** [`data-enrichment.yaml`](../examples/day19-ottl/data-enrichment.yaml)
+
+### Use Case 4: E-commerce Business Intelligence
+
+**Problem:** You have an e-commerce site and want to categorize operations by business value.
+
+**Solution:** Add business context based on operation patterns.
+
 ```yaml
 statements:
-  # Remove all debug attributes
-  - delete_matching_keys(attributes, "debug.*")
-  
-  # Remove all temporary attributes
-  - delete_matching_keys(attributes, "temp.*")
+  - set(attributes["business.value"], "high") where name matches ".*(checkout|payment).*"
+  - set(attributes["business.value"], "medium") where name matches ".*(cart|basket).*"
+  - set(attributes["business.value"], "low") where name matches ".*(browse|search).*"
 ```
 
-### 3. String Functions: Text Manipulation
+> **See complete example:** [`ecommerce-example.yaml`](../examples/day19-ottl/ecommerce-example.yaml)
 
-**Concat()** - Combine strings:
+---
+
+## Working with Different Types of Data
+
+### Numbers and Math
+
+OTTL can work with numbers and do basic math:
+
 ```yaml
-statements:
-  - set(attributes["full_endpoint"], Concat([attributes["http.method"], " ", attributes["http.route"]], ""))
-  - set(attributes["user_info"], Concat([attributes["user.id"], ":", attributes["user.tier"]], ""))
+# Convert bytes to megabytes
+- set(attributes["size.mb"], Int(attributes["size.bytes"]) / 1048576)
+
+# Calculate percentages  
+- set(attributes["error.rate"], (Int(attributes["errors"]) * 100) / Int(attributes["total"]))
+
+# Convert nanoseconds to seconds (duration is always in nanoseconds)
+- set(attributes["duration.seconds"], duration / 1000000000)
 ```
 
-**Split()** - Split strings:
+### Boolean Logic (True/False Conditions)
+
+You can combine multiple conditions:
+
 ```yaml
-statements:
-  # Extract domain from email
-  - set(attributes["user.domain"], Split(attributes["user.email"], "@")[1])
-  
-  # Extract path segments
-  - set(attributes["api.version"], Split(attributes["http.route"], "/")[2])
+# Check multiple conditions with AND
+- set(attributes["critical.error"], "true") where attributes["http.status_code"] >= 500 and attributes["business.area"] == "payment"
+
+# Check multiple conditions with OR  
+- set(attributes["needs.attention"], "true") where duration > 5000000000 or attributes["http.status_code"] >= 500
+
+# Check if value is in a list
+- set(attributes["premium.endpoint"], "true") where attributes["http.route"] in ["/api/premium", "/api/vip"]
 ```
 
-**Replace()** - Replace text:
+### Working with Text Patterns
+
+OTTL uses "matches" for pattern matching:
+
 ```yaml
-statements:
-  # Normalize service names
-  - set(resource.attributes["service.name"], replace_pattern(resource.attributes["service.name"], "[-_]", "."))
-  
-  # Clean up URLs
-  - set(attributes["http.clean_url"], replace_pattern(attributes["http.url"], "\\?.*", ""))
+# Find spans that contain certain words
+- set(attributes["area"], "authentication") where name matches ".*login.*"
+- set(attributes["area"], "database") where name matches ".*db.*"
+
+# Match specific patterns
+- set(attributes["api.version"], "v1") where attributes["http.route"] matches "/api/v1/.*"
 ```
 
 ---
 
-## Advanced OTTL Patterns
+## OTTL for Metrics and Logs
 
-### Business Logic Transformations
+### Transforming Metrics
 
-```yaml
-processors:
-  transform/business-logic:
-    trace_statements:
-      - context: span
-        statements:
-          # Categorize business actions
-          - set(attributes["business.action"], "user_management") where name matches ".*user.*"
-          - set(attributes["business.action"], "payment_processing") where name matches ".*payment.*"
-          - set(attributes["business.action"], "order_fulfillment") where name matches ".*order.*"
-          
-          # Calculate business impact
-          - set(attributes["business.impact"], "critical") where attributes["business.action"] == "payment_processing" and attributes["http.status_code"] >= 500
-          - set(attributes["business.impact"], "high") where attributes["business.action"] == "user_management" and attributes["http.status_code"] >= 500
-          - set(attributes["business.impact"], "medium") where attributes["http.status_code"] >= 400
-          - set(attributes["business.impact"], "low") where attributes["http.status_code"] < 400
-          
-          # Add SLA information
-          - set(attributes["sla.target"], 99.9) where attributes["business.action"] == "payment_processing"
-          - set(attributes["sla.target"], 99.5) where attributes["business.action"] == "user_management"
-          - set(attributes["sla.target"], 95.0) where attributes["business.action"] == "order_fulfillment"
-```
-
-### Data Enrichment from Headers
-
-```yaml
-processors:
-  transform/header-enrichment:
-    trace_statements:
-      - context: span
-        statements:
-          # Extract user information from headers
-          - set(attributes["user.id"], attributes["http.request.header.x-user-id"]) where attributes["http.request.header.x-user-id"] != nil
-          - set(attributes["user.tier"], attributes["http.request.header.x-user-tier"]) where attributes["http.request.header.x-user-tier"] != nil
-          - set(attributes["tenant.id"], attributes["http.request.header.x-tenant-id"]) where attributes["http.request.header.x-tenant-id"] != nil
-          
-          # Extract request context
-          - set(attributes["request.id"], attributes["http.request.header.x-request-id"]) where attributes["http.request.header.x-request-id"] != nil
-          - set(attributes["correlation.id"], attributes["http.request.header.x-correlation-id"]) where attributes["http.request.header.x-correlation-id"] != nil
-          
-          # Clean up - remove header attributes after extraction
-          - delete_matching_keys(attributes, "http.request.header.*")
-```
-
-### Performance Classification
-
-```yaml
-processors:
-  transform/performance-classification:
-    trace_statements:
-      - context: span
-        statements:
-          # Classify response times
-          - set(attributes["performance.category"], "excellent") where duration < 100000000  # < 100ms
-          - set(attributes["performance.category"], "good") where duration >= 100000000 and duration < 500000000  # 100-500ms
-          - set(attributes["performance.category"], "acceptable") where duration >= 500000000 and duration < 1000000000  # 500ms-1s
-          - set(attributes["performance.category"], "slow") where duration >= 1000000000 and duration < 5000000000  # 1-5s
-          - set(attributes["performance.category"], "critical") where duration >= 5000000000  # > 5s
-          
-          # Add performance alerts
-          - set(attributes["alert.performance"], "true") where attributes["performance.category"] == "critical"
-          - set(attributes["alert.performance"], "true") where attributes["performance.category"] == "slow" and attributes["business.impact"] == "critical"
-```
-
----
-
-## Working with Different Data Types
-
-### Numeric Operations
-
-```yaml
-statements:
-  # Convert string to number and perform calculations
-  - set(attributes["http.response.size.mb"], Int(attributes["http.response.size"]) / 1048576) where attributes["http.response.size"] != nil
-  
-  # Calculate percentages
-  - set(attributes["error.rate"], (Int(attributes["error.count"]) * 100) / Int(attributes["total.requests"])) where attributes["total.requests"] != nil
-  
-  # Round numbers
-  - set(attributes["duration.seconds"], duration / 1000000000)  # Convert nanoseconds to seconds
-```
-
-### Boolean Logic
-
-```yaml
-statements:
-  # Complex boolean conditions
-  - set(attributes["is.critical.error"], "true") where attributes["http.status_code"] >= 500 and (attributes["business.action"] == "payment_processing" or attributes["business.action"] == "user_management")
-  
-  # Set flags based on multiple conditions
-  - set(attributes["requires.investigation"], "true") where duration > 5000000000 or attributes["http.status_code"] >= 500 or attributes["error.count"] > 0
-```
-
-### Array and Map Operations
-
-```yaml
-statements:
-  # Check if value exists in array
-  - set(attributes["is.premium.endpoint"], "true") where attributes["http.route"] in ["/api/premium", "/api/vip", "/api/enterprise"]
-  
-  # Work with nested attributes
-  - set(attributes["database.slow"], "true") where attributes["db.statement"] != nil and duration > 1000000000
-```
-
----
-
-## OTTL for Different Signal Types
-
-### Metrics Transformations
+OTTL can also transform metrics to make them more useful:
 
 ```yaml
 processors:
@@ -264,24 +251,21 @@ processors:
     metric_statements:
       - context: metric
         statements:
-          # Rename metrics
+          # Rename metrics to be more descriptive
           - set(name, "http_requests_total") where name == "http.server.requests"
           
-          # Add metric metadata
-          - set(description, "Total HTTP requests received") where name == "http_requests_total"
-      
-      - context: datapoint
+      - context: datapoint  
         statements:
-          # Add labels to all datapoints
+          # Add environment labels to all metrics
           - set(attributes["environment"], resource.attributes["deployment.environment"])
           - set(attributes["service"], resource.attributes["service.name"])
-          
-          # Normalize label values
-          - set(attributes["method"], "GET") where attributes["http.method"] == "get"
-          - set(attributes["method"], "POST") where attributes["http.method"] == "post"
 ```
 
-### Log Transformations
+> **See complete example:** [`metrics-transformations.yaml`](../examples/day19-ottl/metrics-transformations.yaml)
+
+### Transforming Logs
+
+OTTL is especially powerful for logs because it can extract structured data from unstructured log messages:
 
 ```yaml
 processors:
@@ -289,160 +273,165 @@ processors:
     log_statements:
       - context: log
         statements:
-          # Extract structured data from log body
+          # Extract user ID from log message
           - set(attributes["user.id"], ExtractPatterns(body, "user_id=(\\w+)")[0]) where body matches ".*user_id=.*"
-          - set(attributes["request.duration"], ExtractPatterns(body, "duration=(\\d+)ms")[0]) where body matches ".*duration=.*"
           
           # Classify log levels
           - set(severity_text, "ERROR") where body matches ".*ERROR.*"
           - set(severity_text, "WARN") where body matches ".*WARN.*"
-          - set(severity_text, "INFO") where body matches ".*INFO.*"
-          
-          # Add business context
-          - set(attributes["business.critical"], "true") where body matches ".*(payment|billing|checkout).*" and severity_text == "ERROR"
 ```
+
+> **See complete example:** [`logs-transformations.yaml`](../examples/day19-ottl/logs-transformations.yaml)
 
 ---
 
-## Performance Considerations
+## Performance Tips for OTTL
 
-### Efficient OTTL Patterns
+### Keep It Simple
 
-**Good - Specific conditions:**
+**Good - Simple and fast:**
 ```yaml
-statements:
-  - set(attributes["priority"], "high") where attributes["user.tier"] == "premium" and attributes["http.method"] == "POST"
+- set(attributes["priority"], "high") where attributes["user.tier"] == "premium"
 ```
 
-**Avoid - Expensive operations:**
-```yaml
-statements:
-  # Avoid complex regex in hot paths
-  - set(attributes["category"], "api") where name matches ".*api.*"  # Use simpler conditions when possible
+**Avoid - Complex and slow:**
+```yaml  
+- set(attributes["category"], "api") where name matches ".*complex.*regex.*pattern.*"
 ```
 
-### Optimizing Transform Processors
+**Why?** Simple equality checks (`==`) are much faster than complex pattern matching (`matches`).
+
+### Use Specific Conditions
+
+**Good - Targets specific spans:**
+```yaml
+- set(attributes["business.area"], "payment") where name == "POST /api/payments" and attributes["http.status_code"] >= 400
+```
+
+**Avoid - Processes everything:**
+```yaml
+- set(attributes["processed"], "true")  # This runs on every single span!
+```
+
+**Why?** The more specific your `where` conditions, the less work OTTL has to do.
+
+### Multiple Transform Processors
+
+Instead of one giant transform processor, use multiple smaller ones:
 
 ```yaml
 processors:
-  # Process only what's needed
-  transform/critical-only:
+  # First: Add business context
+  transform/business:
     trace_statements:
       - context: span
         statements:
-          - set(attributes["processed"], "true") where attributes["business.critical"] == "true"
-        # Only process critical spans
-        
-  # Use multiple transform processors for different purposes
-  transform/enrichment:
+          - set(attributes["business.area"], "payments") where name matches ".*payment.*"
+  
+  # Second: Add performance categories  
+  transform/performance:
     trace_statements:
       - context: span
         statements:
-          - set(attributes["user.tier"], attributes["http.request.header.x-user-tier"])
-          
-  transform/classification:
-    trace_statements:
-      - context: span
-        statements:
-          - set(attributes["business.impact"], "high") where attributes["user.tier"] == "premium"
+          - set(attributes["speed"], "slow") where duration > 1000000000
 ```
+
+**Why?** This is easier to debug and maintain than one huge processor.
 
 ---
 
-## Debugging OTTL Transformations
+## Debugging Your OTTL Transformations
 
-### Using Logging to Debug
+When your OTTL statements don't work as expected, here's how to debug them:
+
+### 1. Add Debug Attributes
+
+Add temporary attributes to see what's happening:
+
+```yaml
+statements:
+  # Keep the original value for comparison
+  - set(attributes["debug.original_name"], name)
+  
+  # Your transformation
+  - set(name, "user_registration") where name == "POST /api/users"
+  
+  # Mark when transformation was applied
+  - set(attributes["debug.transformed"], "true") where name == "user_registration"
+```
+
+### 2. Use the Logging Processor
+
+Add logging before and after your transform processor:
 
 ```yaml
 processors:
-  # Log before transformation
   logging/before:
     loglevel: debug
-    sampling_initial: 5
     
-  transform/debug:
-    trace_statements:
-      - context: span
-        statements:
-          - set(attributes["debug.original_name"], name)  # Keep original for debugging
-          - set(name, "user_action") where name == "POST /api/users"
-          
-  # Log after transformation
+  transform/my-transforms:
+    # Your OTTL statements here
+    
   logging/after:
     loglevel: debug
-    sampling_initial: 5
 
 service:
   pipelines:
     traces:
-      receivers: [otlp]
-      processors: [logging/before, transform/debug, logging/after]
-      exporters: [otlp/backend]
+      processors: [logging/before, transform/my-transforms, logging/after]
 ```
 
-### Testing OTTL Statements
+### 3. Test with Simple Conditions First
+
+Start simple and build up complexity:
 
 ```yaml
-processors:
-  transform/test:
-    trace_statements:
-      - context: span
-        statements:
-          # Add debug attributes to verify conditions
-          - set(attributes["debug.condition_met"], "true") where attributes["http.status_code"] >= 500
-          - set(attributes["debug.user_tier"], attributes["user.tier"]) where attributes["user.tier"] != nil
+# Start with this
+- set(attributes["test"], "found") where name == "POST /api/users"
+
+# Then add complexity
+- set(attributes["test"], "found") where name == "POST /api/users" and attributes["http.status_code"] >= 400
 ```
+
+> **Complete debugging setup:** [`debug-config.yaml`](../examples/day19-ottl/debug-config.yaml)
 
 ---
 
-## Real-World OTTL Examples
+## When to Use OTTL vs Other Processors
 
-### E-commerce Platform Transformations
+**Use OTTL when you need to:**
+- Rename spans based on complex conditions
+- Add business context to your telemetry
+- Extract data from one attribute to create new attributes
+- Remove sensitive information conditionally
+- Perform calculations or data enrichment
 
-```yaml
-processors:
-  transform/ecommerce:
-    trace_statements:
-      - context: span
-        statements:
-          # Categorize e-commerce actions
-          - set(attributes["ecommerce.action"], "browse") where name matches ".*(product|catalog|search).*"
-          - set(attributes["ecommerce.action"], "cart") where name matches ".*(cart|basket).*"
-          - set(attributes["ecommerce.action"], "checkout") where name matches ".*(checkout|payment|order).*"
-          - set(attributes["ecommerce.action"], "account") where name matches ".*(user|profile|account).*"
-          
-          # Calculate business value
-          - set(attributes["business.value"], "high") where attributes["ecommerce.action"] == "checkout"
-          - set(attributes["business.value"], "medium") where attributes["ecommerce.action"] == "cart"
-          - set(attributes["business.value"], "low") where attributes["ecommerce.action"] == "browse"
-          
-          # Extract order information
-          - set(attributes["order.value"], attributes["http.request.header.x-order-value"]) where attributes["ecommerce.action"] == "checkout"
-          - set(attributes["order.items"], attributes["http.request.header.x-item-count"]) where attributes["ecommerce.action"] == "checkout"
-          
-          # Set SLA based on business value
-          - set(attributes["sla.target"], 99.9) where attributes["business.value"] == "high"
-          - set(attributes["sla.target"], 99.5) where attributes["business.value"] == "medium"
-          - set(attributes["sla.target"], 95.0) where attributes["business.value"] == "low"
-```
+**Use other processors when you need to:**
+- **Attributes processor** - Simple add/delete/update of attributes
+- **Resource processor** - Modify resource attributes only
+- **Batch processor** - Group telemetry for performance
+- **Filter processor** - Drop entire spans/metrics/logs
+
+**OTTL is more powerful but also more complex.** Start with simpler processors and move to OTTL when you need the extra flexibility.
 
 ---
 
 ## What We're Taking Into Day 20
 
-Today we learned the power of OTTL for advanced data transformations:
+Today we learned how to transform telemetry data with OTTL:
 
 **Key concepts:**
-- **OTTL contexts** (resource, span, metric, datapoint, log)
-- **Essential functions** (set, delete, string manipulation)
-- **Complex transformations** for business logic and data enrichment
-- **Performance optimization** for OTTL statements
+- **OTTL transforms data** as it flows through the Collector
+- **Basic pattern:** `FUNCTION(what, value) WHERE condition`
+- **Common functions:** `set()`, `delete_key()`, string manipulation
+- **Contexts:** resource, span, metric, datapoint, log
 
 **Practical skills:**
-- Writing OTTL statements for real-world scenarios
+- Making span names business-friendly
+- Adding performance categories and business context
+- Extracting user information from headers
 - Debugging OTTL transformations
-- Optimizing transform processors for performance
 
-**Tomorrow (Day 20):** We'll learn about **Deployment Patterns** - how to deploy Collectors in different architectures (Agent vs Gateway patterns) for various use cases.
+**Tomorrow (Day 20):** We'll learn about **Deployment Patterns** - different ways to deploy the Collector in your infrastructure (Agent vs Gateway patterns) and when to use each approach.
 
-See you on Day 20! 🚀
+The transformation power of OTTL will become even more valuable when we see how to deploy Collectors at scale!

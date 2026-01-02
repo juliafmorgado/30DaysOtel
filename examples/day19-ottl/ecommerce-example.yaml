@@ -1,0 +1,136 @@
+# E-commerce Platform Transformations
+# Real-world example for an e-commerce platform
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  transform/ecommerce:
+    trace_statements:
+      - context: span
+        statements:
+          # Categorize e-commerce actions based on span names and routes
+          - set(attributes["ecommerce.action"], "browse") where name matches ".*(product|catalog|search|browse).*"
+          - set(attributes["ecommerce.action"], "browse") where attributes["http.route"] matches ".*(products|catalog|search).*"
+          
+          - set(attributes["ecommerce.action"], "cart") where name matches ".*(cart|basket|add_to_cart).*"
+          - set(attributes["ecommerce.action"], "cart") where attributes["http.route"] matches ".*(cart|basket).*"
+          
+          - set(attributes["ecommerce.action"], "checkout") where name matches ".*(checkout|payment|order|purchase).*"
+          - set(attributes["ecommerce.action"], "checkout") where attributes["http.route"] matches ".*(checkout|payment|order).*"
+          
+          - set(attributes["ecommerce.action"], "account") where name matches ".*(user|profile|account|login|register).*"
+          - set(attributes["ecommerce.action"], "account") where attributes["http.route"] matches ".*(user|profile|account|auth).*"
+          
+          - set(attributes["ecommerce.action"], "support") where name matches ".*(support|help|contact).*"
+          - set(attributes["ecommerce.action"], "support") where attributes["http.route"] matches ".*(support|help|contact).*"
+          
+          # Calculate business value based on action
+          - set(attributes["business.value"], "critical") where attributes["ecommerce.action"] == "checkout"
+          - set(attributes["business.value"], "high") where attributes["ecommerce.action"] == "cart"
+          - set(attributes["business.value"], "medium") where attributes["ecommerce.action"] == "account"
+          - set(attributes["business.value"], "low") where attributes["ecommerce.action"] == "browse"
+          - set(attributes["business.value"], "medium") where attributes["ecommerce.action"] == "support"
+          
+          # Extract order information from headers
+          - set(attributes["order.value"], attributes["http.request.header.x-order-value"]) where attributes["ecommerce.action"] == "checkout" and attributes["http.request.header.x-order-value"] != nil
+          - set(attributes["order.items"], attributes["http.request.header.x-item-count"]) where attributes["ecommerce.action"] == "checkout" and attributes["http.request.header.x-item-count"] != nil
+          - set(attributes["order.currency"], attributes["http.request.header.x-currency"]) where attributes["ecommerce.action"] == "checkout" and attributes["http.request.header.x-currency"] != nil
+          
+          # Categorize order values
+          - set(attributes["order.category"], "high_value") where Int(attributes["order.value"]) > 500
+          - set(attributes["order.category"], "medium_value") where Int(attributes["order.value"]) >= 100 and Int(attributes["order.value"]) <= 500
+          - set(attributes["order.category"], "low_value") where Int(attributes["order.value"]) < 100
+          
+          # Set SLA targets based on business value and action
+          - set(attributes["sla.target"], 99.9) where attributes["business.value"] == "critical"
+          - set(attributes["sla.target"], 99.5) where attributes["business.value"] == "high"
+          - set(attributes["sla.target"], 99.0) where attributes["business.value"] == "medium"
+          - set(attributes["sla.target"], 95.0) where attributes["business.value"] == "low"
+          
+          # Set response time SLAs (in milliseconds)
+          - set(attributes["sla.response_time"], 500) where attributes["ecommerce.action"] == "checkout"
+          - set(attributes["sla.response_time"], 1000) where attributes["ecommerce.action"] == "cart"
+          - set(attributes["sla.response_time"], 2000) where attributes["ecommerce.action"] == "account"
+          - set(attributes["sla.response_time"], 3000) where attributes["ecommerce.action"] == "browse"
+          - set(attributes["sla.response_time"], 5000) where attributes["ecommerce.action"] == "support"
+
+  transform/customer-segmentation:
+    trace_statements:
+      - context: span
+        statements:
+          # Customer segmentation based on user tier and behavior
+          - set(attributes["customer.segment"], "vip") where attributes["user.tier"] == "premium" and Int(attributes["order.value"]) > 1000
+          - set(attributes["customer.segment"], "loyal") where attributes["user.tier"] == "premium"
+          - set(attributes["customer.segment"], "regular") where attributes["user.tier"] == "standard" and Int(attributes["order.value"]) > 100
+          - set(attributes["customer.segment"], "new") where attributes["user.tier"] == "free" or attributes["user.tier"] == nil
+          
+          # Set customer priority for support
+          - set(attributes["support.priority"], "P1") where attributes["customer.segment"] == "vip"
+          - set(attributes["support.priority"], "P2") where attributes["customer.segment"] == "loyal"
+          - set(attributes["support.priority"], "P3") where attributes["customer.segment"] == "regular"
+          - set(attributes["support.priority"], "P4") where attributes["customer.segment"] == "new"
+          
+          # Marketing attribution
+          - set(attributes["marketing.channel"], attributes["http.request.header.x-utm-source"]) where attributes["http.request.header.x-utm-source"] != nil
+          - set(attributes["marketing.campaign"], attributes["http.request.header.x-utm-campaign"]) where attributes["http.request.header.x-utm-campaign"] != nil
+
+  transform/fraud-detection:
+    trace_statements:
+      - context: span
+        statements:
+          # Basic fraud indicators
+          - set(attributes["fraud.risk"], "high") where attributes["ecommerce.action"] == "checkout" and Int(attributes["order.value"]) > 2000 and attributes["user.tier"] == "new"
+          - set(attributes["fraud.risk"], "medium") where attributes["ecommerce.action"] == "checkout" and Int(attributes["order.value"]) > 1000 and attributes["customer.segment"] == "new"
+          - set(attributes["fraud.risk"], "low") where attributes["customer.segment"] in ["vip", "loyal"]
+          
+          # Flag suspicious patterns
+          - set(attributes["fraud.flag"], "high_value_new_user") where attributes["fraud.risk"] == "high"
+          - set(attributes["fraud.flag"], "rapid_checkout") where attributes["ecommerce.action"] == "checkout" and duration < 10000000000  # < 10 seconds
+          
+          # Clean up sensitive headers
+          - delete_matching_keys(attributes, "http.request.header.x-credit-card.*")
+          - delete_matching_keys(attributes, "http.request.header.x-payment.*")
+
+  batch:
+    timeout: 1s
+    send_batch_size: 1024
+
+exporters:
+  logging:
+    loglevel: info
+    sampling_initial: 5
+    sampling_thereafter: 50
+
+  otlp/backend:
+    endpoint: http://jaeger:4317
+    tls:
+      insecure: true
+
+  # Separate exporter for fraud detection alerts
+  otlp/fraud-alerts:
+    endpoint: http://fraud-detection-service:4317
+    tls:
+      insecure: true
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [transform/ecommerce, transform/customer-segmentation, transform/fraud-detection, batch]
+      exporters: [logging, otlp/backend]
+    
+    # Separate pipeline for high-risk transactions
+    traces/fraud:
+      receivers: [otlp]
+      processors: [transform/ecommerce, transform/customer-segmentation, transform/fraud-detection, batch]
+      exporters: [otlp/fraud-alerts]
+
+  telemetry:
+    logs:
+      level: info

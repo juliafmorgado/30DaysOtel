@@ -1,0 +1,164 @@
+# OTTL Debug Configuration
+# This configuration helps debug OTTL transformations by adding logging and debug attributes
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  # Log incoming data before transformation
+  logging/before:
+    loglevel: debug
+    sampling_initial: 10
+    sampling_thereafter: 100
+
+  # Add debug attributes to track transformation process
+  transform/debug-prep:
+    trace_statements:
+      - context: span
+        statements:
+          # Preserve original values for debugging
+          - set(attributes["debug.original_name"], name)
+          - set(attributes["debug.original_status"], status.code)
+          - set(attributes["debug.transformation_applied"], "false")
+          
+          # Add timestamp for debugging
+          - set(attributes["debug.processed_at"], time_unix_nano())
+
+  # Main transformation with debug tracking
+  transform/main-with-debug:
+    trace_statements:
+      - context: span
+        statements:
+          # Business logic transformations with debug tracking
+          - set(attributes["business.action"], "user_management") where name matches ".*user.*"
+          - set(attributes["debug.transformation_applied"], "user_management") where name matches ".*user.*"
+          
+          - set(attributes["business.action"], "payment_processing") where name matches ".*payment.*"
+          - set(attributes["debug.transformation_applied"], "payment_processing") where name matches ".*payment.*"
+          
+          - set(attributes["business.action"], "api_call") where name matches ".*api.*"
+          - set(attributes["debug.transformation_applied"], "api_call") where name matches ".*api.*"
+          
+          # Performance classification with debug info
+          - set(attributes["performance.category"], "excellent") where duration < 100000000
+          - set(attributes["debug.duration_ns"], duration) where duration < 100000000
+          - set(attributes["debug.performance_rule"], "excellent") where duration < 100000000
+          
+          - set(attributes["performance.category"], "good") where duration >= 100000000 and duration < 500000000
+          - set(attributes["debug.duration_ns"], duration) where duration >= 100000000 and duration < 500000000
+          - set(attributes["debug.performance_rule"], "good") where duration >= 100000000 and duration < 500000000
+          
+          - set(attributes["performance.category"], "slow") where duration >= 500000000
+          - set(attributes["debug.duration_ns"], duration) where duration >= 500000000
+          - set(attributes["debug.performance_rule"], "slow") where duration >= 500000000
+          
+          # Error handling with debug tracking
+          - set(attributes["error.detected"], "true") where attributes["http.status_code"] >= 400
+          - set(attributes["debug.error_rule"], "http_status") where attributes["http.status_code"] >= 400
+          
+          # Debug condition checking
+          - set(attributes["debug.has_http_method"], "true") where attributes["http.method"] != nil
+          - set(attributes["debug.has_status_code"], "true") where attributes["http.status_code"] != nil
+          - set(attributes["debug.has_user_id"], "true") where attributes["user.id"] != nil
+          
+          # Count transformations applied
+          - set(attributes["debug.transform_count"], 1) where attributes["business.action"] != nil
+          - set(attributes["debug.transform_count"], Int(attributes["debug.transform_count"]) + 1) where attributes["performance.category"] != nil
+          - set(attributes["debug.transform_count"], Int(attributes["debug.transform_count"]) + 1) where attributes["error.detected"] != nil
+
+  # Validation processor to check transformation results
+  transform/validation:
+    trace_statements:
+      - context: span
+        statements:
+          # Validate required fields are present
+          - set(attributes["debug.validation.has_business_action"], "true") where attributes["business.action"] != nil
+          - set(attributes["debug.validation.has_performance_category"], "true") where attributes["performance.category"] != nil
+          
+          # Check for potential issues
+          - set(attributes["debug.validation.issue"], "missing_business_action") where attributes["business.action"] == nil and name matches ".*(user|payment|api).*"
+          - set(attributes["debug.validation.issue"], "unexpected_transformation") where attributes["debug.transformation_applied"] == "false" and attributes["business.action"] != nil
+          
+          # Summary validation
+          - set(attributes["debug.validation.status"], "passed") where attributes["debug.validation.issue"] == nil
+          - set(attributes["debug.validation.status"], "failed") where attributes["debug.validation.issue"] != nil
+
+  # Log after transformation for comparison
+  logging/after:
+    loglevel: debug
+    sampling_initial: 10
+    sampling_thereafter: 100
+
+  # Batch processor
+  batch:
+    timeout: 1s
+    send_batch_size: 512
+
+exporters:
+  # Console exporter with detailed logging
+  logging/detailed:
+    loglevel: debug
+    sampling_initial: 5
+    sampling_thereafter: 50
+  
+  # File exporter for detailed analysis
+  file/debug:
+    path: ./debug-output.json
+    format: json
+  
+  # OTLP exporter (optional)
+  otlp/backend:
+    endpoint: http://localhost:4317
+    tls:
+      insecure: true
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: 
+        - logging/before
+        - transform/debug-prep
+        - transform/main-with-debug
+        - transform/validation
+        - logging/after
+        - batch
+      exporters: [logging/detailed, file/debug]
+  
+  # Enable collector telemetry for debugging
+  telemetry:
+    logs:
+      level: debug
+      development: true
+    metrics:
+      address: 0.0.0.0:8888
+      level: detailed
+    
+  # Enable extensions for debugging
+  extensions: [health_check, pprof, zpages]
+
+extensions:
+  # Health check endpoint
+  health_check:
+    endpoint: 0.0.0.0:13133
+  
+  # Performance profiling
+  pprof:
+    endpoint: 0.0.0.0:1777
+  
+  # zPages for live debugging
+  zpages:
+    endpoint: 0.0.0.0:55679
+
+# Debug Usage Instructions:
+# 1. Start collector: otelcol --config-file=debug-config.yaml
+# 2. Send test traces to see debug attributes
+# 3. Check debug-output.json for detailed transformation results
+# 4. Visit http://localhost:55679 for zPages debugging interface
+# 5. Visit http://localhost:1777/debug/pprof for performance profiling
+# 6. Check console output for before/after transformation logs

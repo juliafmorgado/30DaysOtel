@@ -1,0 +1,120 @@
+# Metrics Transformations with OTTL
+# This configuration shows OTTL transformations for metrics
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+  
+  prometheus:
+    config:
+      scrape_configs:
+        - job_name: 'app-metrics'
+          static_configs:
+            - targets: ['localhost:8080']
+
+processors:
+  transform/metrics:
+    metric_statements:
+      # Metric-level transformations
+      - context: metric
+        statements:
+          # Rename metrics to follow naming conventions
+          - set(name, "http_requests_total") where name == "http.server.requests"
+          - set(name, "http_request_duration_seconds") where name == "http.server.duration"
+          - set(name, "database_connections_active") where name == "db.connections.active"
+          
+          # Add metric descriptions
+          - set(description, "Total HTTP requests received") where name == "http_requests_total"
+          - set(description, "HTTP request duration in seconds") where name == "http_request_duration_seconds"
+          - set(description, "Active database connections") where name == "database_connections_active"
+          
+          # Set metric units
+          - set(unit, "1") where name == "http_requests_total"
+          - set(unit, "s") where name == "http_request_duration_seconds"
+          - set(unit, "1") where name == "database_connections_active"
+      
+      # Datapoint-level transformations
+      - context: datapoint
+        statements:
+          # Add common labels to all datapoints
+          - set(attributes["environment"], resource.attributes["deployment.environment"])
+          - set(attributes["service"], resource.attributes["service.name"])
+          - set(attributes["version"], resource.attributes["service.version"])
+          
+          # Normalize HTTP method labels
+          - set(attributes["method"], "GET") where attributes["http.method"] == "get"
+          - set(attributes["method"], "POST") where attributes["http.method"] == "post"
+          - set(attributes["method"], "PUT") where attributes["http.method"] == "put"
+          - set(attributes["method"], "DELETE") where attributes["http.method"] == "delete"
+          
+          # Normalize status code ranges
+          - set(attributes["status_class"], "2xx") where Int(attributes["http.status_code"]) >= 200 and Int(attributes["http.status_code"]) < 300
+          - set(attributes["status_class"], "3xx") where Int(attributes["http.status_code"]) >= 300 and Int(attributes["http.status_code"]) < 400
+          - set(attributes["status_class"], "4xx") where Int(attributes["http.status_code"]) >= 400 and Int(attributes["http.status_code"]) < 500
+          - set(attributes["status_class"], "5xx") where Int(attributes["http.status_code"]) >= 500
+          
+          # Add business context to metrics
+          - set(attributes["business_critical"], "true") where attributes["endpoint"] in ["/api/payment", "/api/checkout", "/api/order"]
+          - set(attributes["business_critical"], "false") where attributes["business_critical"] != "true"
+          
+          # Categorize endpoints
+          - set(attributes["endpoint_category"], "api") where attributes["endpoint"] matches "/api/.*"
+          - set(attributes["endpoint_category"], "web") where attributes["endpoint"] matches "/web/.*"
+          - set(attributes["endpoint_category"], "health") where attributes["endpoint"] in ["/health", "/ready", "/live"]
+          - set(attributes["endpoint_category"], "metrics") where attributes["endpoint"] == "/metrics"
+          
+          # Remove high-cardinality labels
+          - delete_key(attributes, "user.id")
+          - delete_key(attributes, "request.id")
+          - delete_key(attributes, "session.id")
+
+  # Resource-level transformations for metrics
+  transform/metrics-resource:
+    metric_statements:
+      - context: resource
+        statements:
+          # Normalize service names
+          - set(attributes["service.name"], replace_pattern(attributes["service.name"], "[-_]", "."))
+          
+          # Add cluster information
+          - set(attributes["cluster"], "production") where attributes["deployment.environment"] == "prod"
+          - set(attributes["cluster"], "staging") where attributes["deployment.environment"] == "staging"
+          - set(attributes["cluster"], "development") where attributes["deployment.environment"] == "dev"
+
+  batch:
+    timeout: 1s
+    send_batch_size: 1024
+
+exporters:
+  logging:
+    loglevel: info
+    sampling_initial: 10
+    sampling_thereafter: 100
+
+  prometheus:
+    endpoint: "0.0.0.0:8889"
+    namespace: "otel"
+    const_labels:
+      collector: "otel-collector"
+
+  otlp/metrics:
+    endpoint: http://prometheus:4317
+    tls:
+      insecure: true
+
+service:
+  pipelines:
+    metrics:
+      receivers: [otlp, prometheus]
+      processors: [transform/metrics-resource, transform/metrics, batch]
+      exporters: [logging, prometheus, otlp/metrics]
+
+  telemetry:
+    logs:
+      level: info
+    metrics:
+      address: 0.0.0.0:8888

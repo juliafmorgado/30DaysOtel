@@ -1,0 +1,90 @@
+# Performance Classification
+# This configuration categorizes spans based on performance characteristics
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  transform/performance-classification:
+    trace_statements:
+      - context: span
+        statements:
+          # Classify response times (duration is in nanoseconds)
+          - set(attributes["performance.category"], "excellent") where duration < 100000000      # < 100ms
+          - set(attributes["performance.category"], "good") where duration >= 100000000 and duration < 500000000        # 100-500ms
+          - set(attributes["performance.category"], "acceptable") where duration >= 500000000 and duration < 1000000000  # 500ms-1s
+          - set(attributes["performance.category"], "slow") where duration >= 1000000000 and duration < 5000000000      # 1-5s
+          - set(attributes["performance.category"], "critical") where duration >= 5000000000    # > 5s
+          
+          # Add performance scores (0-100)
+          - set(attributes["performance.score"], 100) where attributes["performance.category"] == "excellent"
+          - set(attributes["performance.score"], 80) where attributes["performance.category"] == "good"
+          - set(attributes["performance.score"], 60) where attributes["performance.category"] == "acceptable"
+          - set(attributes["performance.score"], 30) where attributes["performance.category"] == "slow"
+          - set(attributes["performance.score"], 0) where attributes["performance.category"] == "critical"
+          
+          # Convert duration to human-readable format
+          - set(attributes["duration.ms"], duration / 1000000) where duration != nil
+          - set(attributes["duration.seconds"], duration / 1000000000) where duration >= 1000000000
+          
+          # Set performance alerts based on category and business impact
+          - set(attributes["alert.performance"], "critical") where attributes["performance.category"] == "critical"
+          - set(attributes["alert.performance"], "warning") where attributes["performance.category"] == "slow" and attributes["business.impact"] == "high"
+          - set(attributes["alert.performance"], "info") where attributes["performance.category"] == "slow" and attributes["business.impact"] != "high"
+          
+          # Calculate performance percentiles (simplified)
+          - set(attributes["performance.percentile"], "p99") where attributes["performance.category"] == "critical"
+          - set(attributes["performance.percentile"], "p95") where attributes["performance.category"] == "slow"
+          - set(attributes["performance.percentile"], "p90") where attributes["performance.category"] == "acceptable"
+          - set(attributes["performance.percentile"], "p50") where attributes["performance.category"] == "good"
+          - set(attributes["performance.percentile"], "p10") where attributes["performance.category"] == "excellent"
+
+  transform/sla-monitoring:
+    trace_statements:
+      - context: span
+        statements:
+          # Check SLA violations based on performance and business context
+          - set(attributes["sla.violation"], "true") where duration > 1000000000 and attributes["business.action"] == "payment_processing"  # Payment > 1s
+          - set(attributes["sla.violation"], "true") where duration > 2000000000 and attributes["business.action"] == "user_management"     # User mgmt > 2s
+          - set(attributes["sla.violation"], "true") where duration > 5000000000 and attributes["business.action"] == "order_fulfillment"  # Orders > 5s
+          
+          # Set SLA status
+          - set(attributes["sla.status"], "violated") where attributes["sla.violation"] == "true"
+          - set(attributes["sla.status"], "at_risk") where attributes["performance.category"] == "slow" and attributes["sla.violation"] != "true"
+          - set(attributes["sla.status"], "healthy") where attributes["performance.category"] in ["excellent", "good", "acceptable"] and attributes["sla.violation"] != "true"
+          
+          # Calculate SLA budget impact (simplified)
+          - set(attributes["sla.budget_impact"], 10) where attributes["sla.violation"] == "true" and attributes["business.action"] == "payment_processing"
+          - set(attributes["sla.budget_impact"], 5) where attributes["sla.violation"] == "true" and attributes["business.action"] == "user_management"
+          - set(attributes["sla.budget_impact"], 2) where attributes["sla.violation"] == "true" and attributes["business.action"] == "order_fulfillment"
+
+  batch:
+    timeout: 1s
+    send_batch_size: 1024
+
+exporters:
+  logging:
+    loglevel: info
+    sampling_initial: 10
+    sampling_thereafter: 100
+
+  otlp/backend:
+    endpoint: http://jaeger:4317
+    tls:
+      insecure: true
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [transform/performance-classification, transform/sla-monitoring, batch]
+      exporters: [logging, otlp/backend]
+
+  telemetry:
+    logs:
+      level: info

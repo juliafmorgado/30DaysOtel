@@ -1,0 +1,118 @@
+# OTTL Log Transformations Example
+# This configuration demonstrates log-specific OTTL transformations
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+  
+  filelog:
+    include: ["/var/log/app/*.log"]
+    operators:
+      - type: regex_parser
+        regex: '^(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \[(?P<level>\w+)\] (?P<message>.*)'
+        timestamp:
+          parse_from: attributes.timestamp
+          layout: '%Y-%m-%d %H:%M:%S'
+
+processors:
+  # Log-specific transformations
+  transform/logs:
+    log_statements:
+      - context: log
+        statements:
+          # Extract structured data from log body
+          - set(attributes["user.id"], ExtractPatterns(body, "user_id=(\\w+)")[0]) where body matches ".*user_id=.*"
+          - set(attributes["request.id"], ExtractPatterns(body, "request_id=([\\w-]+)")[0]) where body matches ".*request_id=.*"
+          - set(attributes["duration.ms"], ExtractPatterns(body, "duration=(\\d+)ms")[0]) where body matches ".*duration=.*"
+          - set(attributes["status_code"], ExtractPatterns(body, "status=(\\d+)")[0]) where body matches ".*status=.*"
+          
+          # Normalize log levels
+          - set(severity_text, "ERROR") where body matches ".*ERROR.*" or severity_text == "error"
+          - set(severity_text, "WARN") where body matches ".*WARN.*" or severity_text == "warning"
+          - set(severity_text, "INFO") where body matches ".*INFO.*" or severity_text == "info"
+          - set(severity_text, "DEBUG") where body matches ".*DEBUG.*" or severity_text == "debug"
+          
+          # Set severity number based on text
+          - set(severity_number, 17) where severity_text == "ERROR"    # SEVERITY_NUMBER_ERROR
+          - set(severity_number, 13) where severity_text == "WARN"     # SEVERITY_NUMBER_WARN
+          - set(severity_number, 9) where severity_text == "INFO"      # SEVERITY_NUMBER_INFO
+          - set(severity_number, 5) where severity_text == "DEBUG"     # SEVERITY_NUMBER_DEBUG
+          
+          # Add business context based on log content
+          - set(attributes["business.critical"], "true") where body matches ".*(payment|billing|checkout|transaction).*" and severity_text == "ERROR"
+          - set(attributes["business.area"], "authentication") where body matches ".*(login|auth|token|password).*"
+          - set(attributes["business.area"], "payment") where body matches ".*(payment|billing|checkout|transaction).*"
+          - set(attributes["business.area"], "user_management") where body matches ".*(user|profile|account|registration).*"
+          - set(attributes["business.area"], "api") where body matches ".*(api|endpoint|request|response).*"
+          
+          # Extract error information
+          - set(attributes["error.type"], ExtractPatterns(body, "Exception: ([\\w\\.]+)")[0]) where body matches ".*Exception:.*"
+          - set(attributes["error.message"], ExtractPatterns(body, "Error: (.+)")[0]) where body matches ".*Error:.*"
+          - set(attributes["stack.trace"], "present") where body matches ".*(at \\w+|Traceback).*"
+          
+          # Performance classification for logs with duration
+          - set(attributes["performance.category"], "fast") where Int(attributes["duration.ms"]) < 100
+          - set(attributes["performance.category"], "normal") where Int(attributes["duration.ms"]) >= 100 and Int(attributes["duration.ms"]) < 500
+          - set(attributes["performance.category"], "slow") where Int(attributes["duration.ms"]) >= 500 and Int(attributes["duration.ms"]) < 2000
+          - set(attributes["performance.category"], "critical") where Int(attributes["duration.ms"]) >= 2000
+          
+          # Add alert flags
+          - set(attributes["alert.required"], "true") where severity_text == "ERROR" and attributes["business.critical"] == "true"
+          - set(attributes["alert.required"], "true") where attributes["performance.category"] == "critical"
+          - set(attributes["alert.type"], "business_critical") where attributes["business.critical"] == "true" and severity_text == "ERROR"
+          - set(attributes["alert.type"], "performance") where attributes["performance.category"] == "critical"
+          
+          # Clean up extracted data from body (optional)
+          - set(body, replace_pattern(body, "user_id=\\w+\\s*", "")) where body matches ".*user_id=.*"
+          - set(body, replace_pattern(body, "request_id=[\\w-]+\\s*", "")) where body matches ".*request_id=.*"
+
+  # Resource-level log transformations
+  transform/log-resource:
+    log_statements:
+      - context: resource
+        statements:
+          # Ensure service information is present
+          - set(attributes["service.name"], "unknown-service") where attributes["service.name"] == nil
+          - set(attributes["service.version"], "unknown") where attributes["service.version"] == nil
+          - set(attributes["deployment.environment"], "unknown") where attributes["deployment.environment"] == nil
+          
+          # Normalize environment names
+          - set(attributes["deployment.environment"], "production") where attributes["deployment.environment"] == "prod"
+          - set(attributes["deployment.environment"], "development") where attributes["deployment.environment"] == "dev"
+          - set(attributes["deployment.environment"], "staging") where attributes["deployment.environment"] == "stage"
+
+  # Batch processor for performance
+  batch:
+    timeout: 1s
+    send_batch_size: 1024
+
+exporters:
+  # Console exporter for debugging
+  logging:
+    loglevel: info
+    sampling_initial: 5
+    sampling_thereafter: 200
+  
+  # OTLP exporter for backend
+  otlp/logs:
+    endpoint: http://localhost:4317
+    tls:
+      insecure: true
+
+service:
+  pipelines:
+    logs:
+      receivers: [otlp, filelog]
+      processors: [transform/log-resource, transform/logs, batch]
+      exporters: [logging, otlp/logs]
+  
+  # Enable telemetry for the collector itself
+  telemetry:
+    logs:
+      level: info
+    metrics:
+      address: 0.0.0.0:8888

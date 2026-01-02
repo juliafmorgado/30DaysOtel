@@ -1,0 +1,68 @@
+# Basic OTTL Transformations Example
+# This configuration demonstrates fundamental OTTL functions
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  # Basic transformations using essential OTTL functions
+  transform/basic:
+    trace_statements:
+      - context: span
+        statements:
+          # Set functions - modify data
+          - set(name, "user_registration") where name == "POST /api/users"
+          - set(attributes["request.size"], "large") where attributes["http.request.body.size"] > 1000000
+          - set(status.code, 2) where attributes["http.status_code"] >= 500  # STATUS_CODE_ERROR
+          
+          # Delete functions - remove sensitive data
+          - delete_key(attributes, "user.password")
+          - delete_key(attributes, "credit_card.number")
+          - delete_matching_keys(attributes, "debug.*") where resource.attributes["environment"] == "production"
+          
+          # String functions - text manipulation
+          - set(attributes["full_endpoint"], Concat([attributes["http.method"], " ", attributes["http.route"]], ""))
+          - set(attributes["user.domain"], Split(attributes["user.email"], "@")[1]) where attributes["user.email"] != nil
+
+  # Resource-level transformations
+  transform/resource:
+    trace_statements:
+      - context: resource
+        statements:
+          # Normalize service names
+          - set(attributes["service.name"], replace_pattern(attributes["service.name"], "[-_]", "."))
+          # Add deployment info
+          - set(attributes["deployment.environment"], "production") where attributes["deployment.environment"] == nil
+
+  batch:
+    timeout: 1s
+    send_batch_size: 1024
+
+exporters:
+  # Console exporter to see transformations
+  logging:
+    loglevel: info
+    sampling_initial: 5
+    sampling_thereafter: 200
+
+  # OTLP exporter for backend
+  otlp/backend:
+    endpoint: http://jaeger:4317
+    tls:
+      insecure: true
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [transform/resource, transform/basic, batch]
+      exporters: [logging, otlp/backend]
+
+  telemetry:
+    logs:
+      level: info

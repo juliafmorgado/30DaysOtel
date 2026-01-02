@@ -1,0 +1,83 @@
+# Data Enrichment from Headers
+# This configuration extracts and enriches data from HTTP headers
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  transform/header-enrichment:
+    trace_statements:
+      - context: span
+        statements:
+          # Extract user information from headers
+          - set(attributes["user.id"], attributes["http.request.header.x-user-id"]) where attributes["http.request.header.x-user-id"] != nil
+          - set(attributes["user.tier"], attributes["http.request.header.x-user-tier"]) where attributes["http.request.header.x-user-tier"] != nil
+          - set(attributes["user.role"], attributes["http.request.header.x-user-role"]) where attributes["http.request.header.x-user-role"] != nil
+          - set(attributes["tenant.id"], attributes["http.request.header.x-tenant-id"]) where attributes["http.request.header.x-tenant-id"] != nil
+          
+          # Extract request context
+          - set(attributes["request.id"], attributes["http.request.header.x-request-id"]) where attributes["http.request.header.x-request-id"] != nil
+          - set(attributes["correlation.id"], attributes["http.request.header.x-correlation-id"]) where attributes["http.request.header.x-correlation-id"] != nil
+          - set(attributes["session.id"], attributes["http.request.header.x-session-id"]) where attributes["http.request.header.x-session-id"] != nil
+          
+          # Extract API versioning
+          - set(attributes["api.version"], attributes["http.request.header.x-api-version"]) where attributes["http.request.header.x-api-version"] != nil
+          - set(attributes["client.version"], attributes["http.request.header.x-client-version"]) where attributes["http.request.header.x-client-version"] != nil
+          
+          # Extract feature flags
+          - set(attributes["feature.flags"], attributes["http.request.header.x-feature-flags"]) where attributes["http.request.header.x-feature-flags"] != nil
+          
+          # Clean up - remove header attributes after extraction
+          - delete_matching_keys(attributes, "http.request.header.*")
+
+  transform/user-enrichment:
+    trace_statements:
+      - context: span
+        statements:
+          # Enrich based on user tier
+          - set(attributes["user.priority"], "high") where attributes["user.tier"] == "premium"
+          - set(attributes["user.priority"], "high") where attributes["user.tier"] == "enterprise"
+          - set(attributes["user.priority"], "medium") where attributes["user.tier"] == "pro"
+          - set(attributes["user.priority"], "low") where attributes["user.tier"] == "free"
+          
+          # Set SLA based on user tier
+          - set(attributes["sla.response_time"], 100) where attributes["user.tier"] == "enterprise"  # 100ms
+          - set(attributes["sla.response_time"], 200) where attributes["user.tier"] == "premium"    # 200ms
+          - set(attributes["sla.response_time"], 500) where attributes["user.tier"] == "pro"       # 500ms
+          - set(attributes["sla.response_time"], 1000) where attributes["user.tier"] == "free"     # 1000ms
+          
+          # Add tenant context
+          - set(attributes["tenant.type"], "enterprise") where attributes["tenant.id"] matches "ent-.*"
+          - set(attributes["tenant.type"], "startup") where attributes["tenant.id"] matches "startup-.*"
+          - set(attributes["tenant.type"], "individual") where attributes["tenant.id"] matches "ind-.*"
+
+  batch:
+    timeout: 1s
+    send_batch_size: 1024
+
+exporters:
+  logging:
+    loglevel: info
+    sampling_initial: 10
+    sampling_thereafter: 100
+
+  otlp/backend:
+    endpoint: http://jaeger:4317
+    tls:
+      insecure: true
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [transform/header-enrichment, transform/user-enrichment, batch]
+      exporters: [logging, otlp/backend]
+
+  telemetry:
+    logs:
+      level: info
