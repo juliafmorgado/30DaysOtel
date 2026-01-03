@@ -22,6 +22,8 @@ Today we'll learn how to configure different receiver types and understand when 
 
 ## The Three Main Receiver Categories
 
+A receiver is a “listening point” or “collector” for telemetry.
+
 ### 1. Push Receivers (apps send data to Collector)
 - **OTLP Receiver** - OpenTelemetry native protocol
 - **Jaeger Receiver** - Legacy Jaeger format
@@ -41,6 +43,9 @@ Today we'll learn how to configure different receiver types and understand when 
 ## OTLP Receiver: The Most Important One
 
 The OTLP receiver accepts data from OpenTelemetry SDKs. This is what we'll use most often.
+
+> The `otlp` receiver can listen on multiple protocols at once (gRPC and HTTP).
+> It’s still **one receiver instance** that supports multiple “ways of speaking.”
 
 ### Basic Configuration
 
@@ -91,6 +96,9 @@ receivers:
 
 The Prometheus receiver pulls metrics from Prometheus-compatible endpoints.
 
+> The Prometheus **receiver** scrapes *other services’* `/metrics` endpoints.
+> It does not scrape the Collector unless you explicitly target it.
+
 ### Basic Prometheus Scraping
 
 ```yaml
@@ -137,6 +145,8 @@ receivers:
 ## Filelog Receiver: Reading Log Files
 
 The filelog receiver reads logs from files and converts them to OpenTelemetry format.
+
+> Filelog typically tails files (keeps reading new lines). Make sure the Collector user can read the files.
 
 ### Basic File Reading
 

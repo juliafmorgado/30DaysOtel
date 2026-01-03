@@ -44,17 +44,35 @@ Inventory → SDK → Jaeger
 
 **With Collector:**
 ```
-Frontend → SDK → 
-API → SDK → → Collector → Jaeger (traces)
-Payment → SDK →           → Prometheus (metrics)
-Inventory → SDK →         → Elasticsearch (logs)
+Frontend   → SDK →
+API        → SDK →        ┌────────────┐
+Payment    → SDK → ─────▶ │  Collector │
+Inventory  → SDK →        └────────────┘
+                               │
+                 ┌─────────────┼─────────────┐
+                 │             │             │
+              Jaeger       Prometheus        X
+              (traces)      (metrics)        (logs)
+
 ```
 
 **Key benefits:**
 - **Centralized configuration** - Change backends without touching application code
 - **Advanced processing** - Complex filtering, transformations, and routing
-- **Multi-backend support** - Send different data types to different tools
 - **Independent scaling** - Scale telemetry processing separately from apps
+
+> [!IMPORTANT]
+> The Collector does not replace the SDK. They work together.
+>
+> The SDK lives inside your app and does things the Collector can’t:
+> - Creates spans, metrics, and logs
+> - Handles context propagation
+> - Instruments libraries (HTTP, DB, messaging)
+> - Knows what is happening inside the code
+>
+> Without an SDK, the Collector would have nothing to receive from most apps.
+>
+> The SDK still creates telemetry and sends it out. The Collector receives it, processes it and routes it.
 
 ---
 
@@ -94,7 +112,38 @@ receivers:
       http:
         endpoint: 0.0.0.0:4318 # Port for HTTP protocol
 ```
-Accepts data from OpenTelemetry SDKs. Oour Node.js app from Week 2 would send traces to `http://collector:4318/v1/traces`.
+Accepts data from OpenTelemetry SDKs. Our Node.js app from Week 2 would send traces to `http://collector:4318/v1/traces`.
+
+<details>
+<summary><strong>What is OTLP?</strong></summary>
+
+OTLP (OpenTelemetry Protocol) is the standard way OpenTelemetry components
+send telemetry data to each other.
+
+Apps and Collectors use OTLP to send traces, metrics, and logs
+in a single, consistent format.
+
+Most setups use OTLP automatically — you usually don’t need to configure it
+until later.
+</details>
+
+<details>
+<summary><strong>What is OTLP?</strong></summary>
+
+OTLP (OpenTelemetry Protocol) is the standard way OpenTelemetry components send telemetry data to each other.
+
+It created one universal format that everyone can understand. It's like having a universal translator = your app speaks OTLP, and any OTLP-compatible backend can understand it.
+
+**In practice:**
+- In Week 2: Your Node.js app sent OTLP directly to Jaeger (which understands OTLP)
+- With Collector: Your app sends OTLP to the Collector, which can then send data to multiple backends
+- Both approaches use the same OTLP format - your app code doesn't change
+
+**Two ways OTLP works:**
+- **gRPC (port 4317):** Fast, binary format -> like sending a compressed file
+- **HTTP (port 4318):** Slower, JSON format -> like sending readable text
+
+</details>
 
 **Prometheus Receiver** (the translator):
 ```yaml
@@ -176,6 +225,18 @@ exporters:
 ```
 Sends telemetry data using the OpenTelemetry Protocol (OTLP) which is industry standard.
 
+> **OpenTelemetry-Native Backends**
+
+> Modern platforms like **Dash0** are built for OpenTelemetry:
+
+> - Use standard OTLP (no vendor-specific exporters needed)
+
+> - Understand semantic conventions natively
+
+> - No data transformation required
+
+> This is the advantage of the OpenTelemetry ecosystem—native support means simpler configuration.
+
 **Prometheus Exporter** (the metrics specialist):
 ```yaml
 exporters:
@@ -198,7 +259,7 @@ Prints telemetry data to the Collector's console/logs (great for debugging).
 
 Pipelines define how receivers, processors, and exporters work together. Each pipeline handles one telemetry type, so they can have completely different processing logic.
 
-> We separate each pipeline because they have different processing needs (traces might need complex filtering, while metrics just need batching), and destinations; they have different scaling needs and it helps isolating problems (ithe traces pipeline has issues, your metrics and logs keep flowing).
+> We separate each pipeline because they have different processing needs (traces might need complex filtering, while metrics just need batching), and destinations; they have different scaling needs and it helps isolating problems (if traces pipeline has issues, your metrics and logs keep flowing).
 
 ```yaml
 service:
@@ -299,41 +360,6 @@ Let's imagine a scenario where we're running a growing e-commerce platform that 
 
 ---
 
-## Collector Deployment Patterns (Preview)
-
-The Collector is flexible and can be deployed in different ways depending on our needs. Think of these as different strategies for organizing our telemetry processing infrastructure.
-
-
-**Agent Pattern:**
-A Collector runs on each host/container alongside our applications.
-
-```
-App A → Collector Agent (same host) → Central Backend
-App B → Collector Agent (same host) → Central Backend
-```
-
-**Gateway Pattern:**
-One or more centralized Collectors receive telemetry from many applications.
-
-```
-App A → 
-App B → → Central Collector Gateway → Multiple Backends
-App C →
-```
-
-**Hybrid Pattern:**
-Agents collect locally, then forward to centralized gateways for advanced processing.
-
-```
-App A → Agent → 
-App B → Agent → → Gateway → Multiple Backends
-App C → Agent →
-```
-
-We'll explore these in detail on Day 20.
-
----
-
 ## What We're NOT Covering Today
 
 Today is architecture overview only ("what" and "why" before diving into the "how"). This week we'll dive into the detailed implementation.
@@ -346,8 +372,6 @@ Today is architecture overview only ("what" and "why" before diving into the "ho
 **Each pipeline handles one telemetry type** (traces, metrics, logs) and can be configured independently.
 **Data flows through stages:** Input → Transform → Output, with each stage having a specific responsibility.
 **Components are pluggable:** Mix and match receivers, processors, and exporters like building blocks.
-
-
 
 ---
 

@@ -18,6 +18,9 @@ Imagine you're collecting traces from your application, but you realize:
 
 **Think of OTTL as "find and replace" on steroids** - but instead of just text, you can transform any part of your telemetry data based on conditions you define.
 
+> [!Note]
+> Don't confuse OTTL and OTLP
+> As seen on [Day 15](./day15.md), OTLP is a protocol, a way to send data from A to B. OTTL is a way to modify data.
 ---
 
 ## How OTTL Works: The Basics
