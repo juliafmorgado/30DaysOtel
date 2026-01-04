@@ -1,5 +1,19 @@
 # Performance Classification
-# This configuration categorizes spans based on performance characteristics
+#
+# Problem: Raw duration numbers (like 1500000000 nanoseconds) are hard to interpret
+# Solution: Categorize performance into human-friendly labels and add SLA monitoring
+#
+# What this does:
+# - Converts raw durations to categories: excellent, good, acceptable, slow, critical
+# - Adds performance scores (0-100) for dashboards
+# - Creates human-readable duration fields (milliseconds, seconds)
+# - Sets up performance alerts based on business impact
+# - Monitors SLA violations with budget impact calculations
+#
+# Example transformation:
+# Before: duration=2500000000 (nanoseconds)
+# After:  performance.category="slow", performance.score=30, duration.ms=2500,
+#         duration.seconds=2.5, alert.performance="warning"
 
 receivers:
   otlp:

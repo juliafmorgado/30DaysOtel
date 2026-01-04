@@ -1,5 +1,24 @@
 # OTTL Debug Configuration
-# This configuration helps debug OTTL transformations by adding logging and debug attributes
+#
+# Problem: OTTL transformations not working as expected? Need to see what's happening?
+# Solution: Comprehensive debugging setup with before/after logging and validation
+#
+# What this provides:
+# - Before/after logging to compare input vs output
+# - Debug attributes that track which transformations were applied
+# - Validation checks to catch common OTTL mistakes
+# - Multiple output formats (console, file, backend) for analysis
+# - Built-in Collector debugging tools (zPages, pprof, health checks)
+# - Detailed transformation counting and rule tracking
+#
+# How to use:
+# 1. Run this config when your OTTL isn't working as expected
+# 2. Send test data and watch console output for before/after comparison
+# 3. Check debug-output.json for detailed analysis
+# 4. Use debug.* attributes to see which rules fired
+# 5. Visit http://localhost:55679 for live Collector debugging
+#
+# Perfect for: Learning OTTL, troubleshooting transformations, validating rules
 
 receivers:
   otlp:

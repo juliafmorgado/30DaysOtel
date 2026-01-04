@@ -1,5 +1,20 @@
 # Data Enrichment from Headers
-# This configuration extracts and enriches data from HTTP headers
+#
+# Problem: Important context (user info, request IDs) is buried in HTTP headers
+# Solution: Extract header data into proper span attributes for easier filtering and analysis
+#
+# What this does:
+# - Extracts user information (ID, tier, role) from custom headers
+# - Pulls out request tracking IDs for correlation
+# - Captures API and client version information
+# - Enriches spans with user priority and SLA targets based on tier
+# - Determines tenant type from tenant ID patterns
+# - Cleans up by removing the original header attributes
+#
+# Example transformation:
+# Before: http.request.header.x-user-id="user123", http.request.header.x-user-tier="premium"
+# After:  user.id="user123", user.tier="premium", user.priority="high", 
+#         sla.response_time=200 (and header attributes removed)
 
 receivers:
   otlp:

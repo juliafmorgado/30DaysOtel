@@ -1,5 +1,19 @@
 # Business Logic Transformations
-# This configuration adds business context and categorization to telemetry
+# 
+# Problem: Technical span names like "POST /api/users" don't tell you the business impact
+# Solution: Add business context, impact levels, SLA targets, and alerting priorities
+#
+# What this does:
+# - Categorizes operations by business area (payments, user management, etc.)
+# - Assigns business impact levels based on what failed
+# - Sets SLA targets appropriate for each business function
+# - Adds alert priorities for incident response
+# - Maps operations to cost centers for billing
+#
+# Example transformation:
+# Before: name="POST /api/payments", http.status_code=500
+# After:  business.action="payment_processing", business.impact="critical", 
+#         sla.target=99.9, alert.priority="P1", cost.center="payments"
 
 receivers:
   otlp:

@@ -1,5 +1,21 @@
 # E-commerce Platform Transformations
-# Real-world example for an e-commerce platform
+#
+# Problem: E-commerce operations need business context for analytics, fraud detection, and SLAs
+# Solution: Transform technical spans into business-meaningful data with customer segmentation
+#
+# What this does:
+# - Categorizes operations: browse, cart, checkout, account, support
+# - Assigns business value levels (critical checkout vs. low-value browsing)
+# - Extracts order information (value, items, currency) from headers
+# - Segments customers (VIP, loyal, regular, new) based on tier and behavior
+# - Sets appropriate SLA targets for each operation type
+# - Adds basic fraud detection indicators
+# - Routes high-risk transactions to fraud detection service
+#
+# Example transformation:
+# Before: name="POST /api/checkout", http.request.header.x-order-value="1500"
+# After:  ecommerce.action="checkout", business.value="critical", order.value="1500",
+#         order.category="high_value", customer.segment="loyal", sla.target=99.9
 
 receivers:
   otlp:

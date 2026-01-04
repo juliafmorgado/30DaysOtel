@@ -1,5 +1,20 @@
 # Basic OTTL Transformations Example
-# This configuration demonstrates fundamental OTTL functions
+#
+# Problem: Need to learn the fundamental OTTL functions before complex use cases
+# Solution: Simple examples of the most common OTTL operations you'll use daily
+#
+# What this demonstrates:
+# - set() function: Change span names, add attributes, modify status codes
+# - delete_key() and delete_matching_keys(): Remove sensitive or debug data
+# - String functions: Concat(), Split(), replace_pattern() for text manipulation
+# - Resource vs span context: Different transformation targets
+# - Conditional logic: Using WHERE clauses to apply transformations selectively
+#
+# Example transformations:
+# - "POST /api/users" → "user_registration" (friendlier span names)
+# - Remove user.password and credit_card.number (security)
+# - "GET /api/products" → "GET /api/products" + full_endpoint attribute
+# - Extract domain from email: "user@company.com" → user.domain="company.com"
 
 receivers:
   otlp:
