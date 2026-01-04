@@ -359,12 +359,6 @@ Today is architecture overview only ("what" and "why" before diving into the "ho
 
 ---
 
-## Key Takeaways
-
-
-
----
-
 ## What I'm Taking Into Day 16
 
 **The Collector is a telemetry processing hub:**
