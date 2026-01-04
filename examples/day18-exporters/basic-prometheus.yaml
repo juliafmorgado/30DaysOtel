@@ -1,0 +1,35 @@
+# Basic Prometheus Exporter Configuration
+# Exposes metrics for Prometheus to scrape
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+    timeout: 1s
+    send_batch_size: 512
+
+exporters:
+  prometheus:
+    endpoint: "0.0.0.0:8889"
+    namespace: "otel"
+    const_labels:
+      environment: "development"
+
+service:
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [prometheus]
+
+# Usage:
+# 1. Start Collector: otelcol --config=basic-prometheus.yaml
+# 2. Send metrics from your app to http://localhost:4318
+# 3. Check metrics at http://localhost:8889/metrics
+# 4. Configure Prometheus to scrape http://localhost:8889/metrics

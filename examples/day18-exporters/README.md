@@ -1,22 +1,24 @@
 # Day 18 - Exporters Examples
 
-This directory contains example configurations for different OpenTelemetry Collector exporters and multi-backend strategies.
+This directory contains beginner-friendly examples for configuring OpenTelemetry Collector exporters.
 
 ## Files
 
-- `multi-backend.yaml` - Send data to multiple backends simultaneously
-- `environment-routing.yaml` - Route data based on environment
-- `data-tiering.yaml` - Send different data to different backends based on importance
+- `basic-jaeger.yaml` - Send traces to Jaeger
+- `basic-prometheus.yaml` - Send metrics to Prometheus
+- `basic-loki.yaml` - Send logs to Loki
+- `simple-multi.yaml` - Send each telemetry type to its specialized backend
+- `debug-exporters.yaml` - Use logging exporter to debug what's being sent
 
 ## Understanding Exporters
 
-Exporters send processed telemetry data to observability backends:
+Exporters are the final step in the Collector pipeline - they send your processed telemetry data to observability backends:
 
 ```
-Receivers → Processors → Exporters
-                           ↓
-                    Multiple Backends
+Your App → Collector → Exporter → Backend (Jaeger, Prometheus, etc.)
 ```
+
+**Key concept:** Different backends expect different formats, so you need the right exporter for each backend type.
 
 ## Running the Examples
 
@@ -28,28 +30,56 @@ Receivers → Processors → Exporters
    chmod +x otelcol
    ```
 
-2. **Set environment variables:**
+2. **Start backends (using Docker):**
    ```bash
-   export DASH0_TOKEN="your-dash0-token"
-   export JAEGER_ENDPOINT="localhost:14250"
+   # Start Jaeger
+   docker run -d --name jaeger \
+     -p 16686:16686 -p 14250:14250 \
+     jaegertracing/all-in-one:latest
+   
+   # Start Prometheus
+   docker run -d --name prometheus \
+     -p 9090:9090 \
+     prom/prometheus:latest
    ```
 
-### Running the Multi-Backend Example
+### Example 1: Basic Jaeger (Traces)
 
 ```bash
-./otelcol --config=multi-backend.yaml
+./otelcol --config=basic-jaeger.yaml
 ```
 
-This configuration:
-- Sends traces to Dash0, Jaeger, and local file backup
-- Sends metrics to Dash0 and Prometheus endpoint
-- Sends logs only to Dash0
+**What this does:**
+- Receives traces from your apps on port 4318
+- Sends traces to Jaeger
+- View traces at http://localhost:16686
 
-### Testing the Configuration
+### Example 2: Basic Prometheus (Metrics)
 
-**Send test data:**
 ```bash
-# Send a test trace
+./otelcol --config=basic-prometheus.yaml
+```
+
+**What this does:**
+- Receives metrics from your apps
+- Exposes metrics for Prometheus to scrape on port 8889
+- Configure Prometheus to scrape http://localhost:8889/metrics
+
+### Example 3: Debug What's Being Sent
+
+```bash
+./otelcol --config=debug-exporters.yaml
+```
+
+**What this does:**
+- Shows you exactly what data is being exported
+- Prints telemetry to console AND sends to Jaeger
+- Great for troubleshooting!
+
+### Testing Your Setup
+
+**Send test traces:**
+```bash
 curl -X POST http://localhost:4318/v1/traces \
   -H "Content-Type: application/json" \
   -d '{
@@ -73,99 +103,65 @@ curl -X POST http://localhost:4318/v1/traces \
   }'
 ```
 
-**Check Prometheus metrics:**
-```bash
-curl http://localhost:8889/metrics
-```
+**Check results:**
+- **Jaeger:** Visit http://localhost:16686 to see traces
+- **Prometheus:** Visit http://localhost:8889/metrics to see metrics
+- **Console:** Check terminal output for debug logs
 
 ## Key Concepts Demonstrated
 
-### 1. Multi-Backend Export
-Send the same data to multiple backends:
+### 1. Different Exporters for Different Backends
+Each backend expects a specific format:
+- **Jaeger exporter** → Converts OpenTelemetry traces to Jaeger format
+- **Prometheus exporter** → Exposes metrics in Prometheus format
+- **OTLP exporter** → Sends data in OpenTelemetry's native format
+
+### 2. Basic Configuration
+Simple exporter setup with essential settings:
 ```yaml
+exporters:
+  jaeger:
+    endpoint: jaeger:14250    # Where to send data
+    tls:
+      insecure: true          # No encryption (dev only)
+```
+
+### 3. Debugging with Logging Exporter
+See exactly what's being exported:
+```yaml
+exporters:
+  logging:
+    loglevel: debug           # Print detailed info
+  jaeger:
+    endpoint: jaeger:14250
+
 service:
   pipelines:
     traces:
-      receivers: [otlp]
-      processors: [batch]
-      exporters: [backend1, backend2, backend3]  # Multiple exporters
+      exporters: [logging, jaeger]  # Send to both
 ```
 
-### 2. Signal Separation
-Send different signal types to specialized backends:
-- Traces → Jaeger (specialized for tracing)
-- Metrics → Prometheus (specialized for metrics)
-- Logs → Loki (specialized for logs)
-- Everything → Unified platform (Dash0)
+## Common Issues and Solutions
 
-### 3. Reliability Features
-- Retry on failure
-- Compression for bandwidth efficiency
-- Timeouts for reliability
-- Queue management for high throughput
+**"Connection refused" errors:**
+- Make sure your backend (Jaeger, Prometheus) is running
+- Check the endpoint URL and port number
+- Verify firewall settings
 
-## Monitoring Exporter Health
+**"No data appearing" in backend:**
+- Use the debug configuration to see if data is being sent
+- Check that your app is sending data to the Collector
+- Verify the exporter configuration matches your backend setup
 
-Enable Collector metrics to monitor exporter performance:
-```yaml
-service:
-  telemetry:
-    metrics:
-      address: 0.0.0.0:8888
-```
-
-Then check exporter metrics:
-```bash
-curl http://localhost:8888/metrics | grep exporter
-```
-
-Key metrics to watch:
-- `otelcol_exporter_sent_spans_total` - Successfully sent spans
-- `otelcol_exporter_send_failed_spans_total` - Failed exports
-- `otelcol_exporter_queue_size` - Queue backlog
-
-## Troubleshooting
-
-**Exporter failures:**
-- Check network connectivity to backend endpoints
-- Verify authentication tokens and headers
-- Check TLS configuration for HTTPS endpoints
-
-**High memory usage:**
-- Reduce batch sizes
-- Enable compression
-- Check retry configuration
-
-**Slow exports:**
-- Increase timeout values
-- Enable compression
-- Use multiple consumers in sending queue
-
-## Security Best Practices
-
-1. **Use environment variables for secrets:**
-   ```yaml
-   headers:
-     authorization: "Bearer ${env:API_TOKEN}"
-   ```
-
-2. **Enable TLS for production:**
-   ```yaml
-   tls:
-     cert_file: /path/to/cert.pem
-     key_file: /path/to/key.pem
-   ```
-
-3. **Validate backend certificates:**
-   ```yaml
-   tls:
-     insecure: false  # Verify certificates
-   ```
+**"TLS errors" in production:**
+- Set `insecure: false` for production
+- Add proper certificate configuration
+- Use HTTPS endpoints for cloud backends
 
 ## Next Steps
 
 After trying these examples:
 1. Configure exporters for your actual backends
-2. Experiment with different multi-backend strategies
-3. Set up monitoring for exporter health
+2. Try the simple-multi.yaml to send different telemetry types to specialized backends
+3. Use debug-exporters.yaml whenever you need to troubleshoot
 4. Move on to Day 19 to learn about OTTL transformations!
