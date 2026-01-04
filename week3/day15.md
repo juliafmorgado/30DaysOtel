@@ -10,13 +10,7 @@ Think of this as moving from a **personal assistant** (the SDK) to a **full proc
 
 ## The Problem: SDK Limitations at Scale
 
-In Week 2, we used the SDK to process telemetry:
-
-```
-Your App → SDK (Sampler → Processor → Exporter) → Backend
-```
-
-This works great for single applications, but imagine we're running an e-commerce platform with:
+In Week 2, we used the SDK to process telemetry. This works great for single applications, but imagine we're running an e-commerce platform with:
 - Web frontend (React)
 - API server (Node.js)  
 - Payment service (Go)
@@ -36,10 +30,10 @@ The Collector is a **standalone service** that acts as a centralized telemetry p
 
 **Before Collector (SDK-only):**
 ```
-Frontend → SDK → Jaeger
-API → SDK → Jaeger  
-Payment → SDK → Jaeger
-Inventory → SDK → Jaeger
+Frontend → SDK → Backend
+API → SDK → Backend  
+Payment → SDK → Backend
+Inventory → SDK → Backend
 ```
 
 **With Collector:**
@@ -51,15 +45,15 @@ Inventory  → SDK →        └────────────┘
                                │
                  ┌─────────────┼─────────────┐
                  │             │             │
-              Jaeger       Prometheus        X
+              Dash0/Jaeger Dash0/Prometheus  Dash0
               (traces)      (metrics)        (logs)
 
 ```
 
 **Key benefits:**
-- **Centralized configuration** - Change backends without touching application code
-- **Advanced processing** - Complex filtering, transformations, and routing
-- **Independent scaling** - Scale telemetry processing separately from apps
+- **Centralized configuration**: Change backends without touching application code
+- **Advanced processing**: Complex filtering, transformations, and routing
+- **Independent scaling**: Scale telemetry processing separately from apps
 
 > [!IMPORTANT]
 > The Collector does not replace the SDK. They work together.
@@ -90,7 +84,7 @@ Receivers → Processors → Exporters
 ### Example data flow:
 1. **Receiver** gets telemetry from your Node.js app
 2. **Processor** adds environment labels and batches data
-3. **Exporter** sends traces to Jaeger and metrics to Prometheus
+3. **Exporter** sends traces to Jaeger and metrics to Prometheus, or everything to Dash0
 
 ---
 
@@ -98,9 +92,9 @@ Receivers → Processors → Exporters
 
 Receivers are the **input** side of the Collector, like different types of mailboxes that can accept mail in different formats. Each receiver knows how to understand a specific protocol or format. 
 
-> Sometimes we need different received because we might have modern apps sending data via OTLP, legacy apps that only know how to expose Prometheus metrics, 3rd-party services that send data in their own formats etc. So instead of forcing every application to speak the same language, the Collector provides receivers that can understand many different "languages."
+> Sometimes we need different receivers because we might have modern apps sending data via OTLP, legacy apps that only know how to expose Prometheus metrics, 3rd-party services that send data in their own formats etc. So instead of forcing every application to speak the same language, the Collector provides receivers that can understand many different "languages."
 
-### Common receiver types explained:
+### Common receiver types:
 
 **OTLP Receiver** (the native speaker):
 ```yaml
@@ -112,36 +106,29 @@ receivers:
       http:
         endpoint: 0.0.0.0:4318 # Port for HTTP protocol
 ```
-Accepts data from OpenTelemetry SDKs. Our Node.js app from Week 2 would send traces to `http://collector:4318/v1/traces`.
+Accepts data from OpenTelemetry SDKs using either gRPC (faster, binary -> like sending a compressed file) or HTTP (easier to debug -> like sending readable text). 
+
+Our Node.js app from Week 2 can send telemetry to either `collector:4317` or `http://collector:4318`.
 
 <details>
 <summary><strong>What is OTLP?</strong></summary>
 
-OTLP (OpenTelemetry Protocol) is the standard way OpenTelemetry components
-send telemetry data to each other.
-
-Apps and Collectors use OTLP to send traces, metrics, and logs
-in a single, consistent format.
-
-Most setups use OTLP automatically — you usually don’t need to configure it
-until later.
-</details>
-
-<details>
-<summary><strong>What is OTLP?</strong></summary>
-
-OTLP (OpenTelemetry Protocol) is the standard way OpenTelemetry components send telemetry data to each other.
-
-It created one universal format that everyone can understand. It's like having a universal translator = your app speaks OTLP, and any OTLP-compatible backend can understand it.
+OTLP is the default protocol for OpenTelemetry. It is the standard way to transmit telemetry data between applications, Collectors, and observability backends.
 
 **In practice:**
-- In Week 2: Your Node.js app sent OTLP directly to Jaeger (which understands OTLP)
-- With Collector: Your app sends OTLP to the Collector, which can then send data to multiple backends
-- Both approaches use the same OTLP format - your app code doesn't change
+```
+// Week 2: Direct to Jaeger
+traceExporter: new OTLPTraceExporter({
+  url: "http://localhost:4318/v1/traces"  // Traces sent direct to Jaeger
+})
 
-**Two ways OTLP works:**
-- **gRPC (port 4317):** Fast, binary format -> like sending a compressed file
-- **HTTP (port 4318):** Slower, JSON format -> like sending readable text
+// With Collector: Same code, different URL
+traceExporter: new OTLPTraceExporter({
+  url: "http://collector:4318/v1/traces"  // Traces sent direct to Collector instead
+})
+```
+
+OTLP makes your telemetry setup flexible. You can switch from direct-to-backend to using a Collector without changing your application code at all. Only the endpoint URL changes.
 
 </details>
 
@@ -223,18 +210,16 @@ exporters:
     headers:
       authorization: "Bearer your-token"
 ```
-Sends telemetry data using the OpenTelemetry Protocol (OTLP) which is industry standard.
+Sends telemetry data using the industry standard OpenTelemetry Protocol (OTLP).
 
 > **OpenTelemetry-Native Backends**
-
+>
 > Modern platforms like **Dash0** are built for OpenTelemetry:
-
+>
 > - Use standard OTLP (no vendor-specific exporters needed)
-
 > - Understand semantic conventions natively
-
 > - No data transformation required
-
+>
 > This is the advantage of the OpenTelemetry ecosystem—native support means simpler configuration.
 
 **Prometheus Exporter** (the metrics specialist):
@@ -275,7 +260,7 @@ service:
       exporters: [prometheus]  # Send them to Prometheus
     
     logs:                      # This pipeline handles log data
-      receivers: [otlp, filelog]     # Get logs from OTLP and files
+      receivers: [otlp, filelog] # Get logs from OTLP and files
       processors: [batch]      # Just batch them
       exporters: [logging]     # Print them to console
 ```
@@ -283,6 +268,14 @@ service:
 ---
 
 ## Complete Example: E-commerce Platform
+
+**Step 1: Define the Components**
+
+**Step 2: Connect Them in Pipelines**
+
+Think of it like:
+- First: "Here are all the tools I have available" (receivers, processors, exporters)
+- Then: "Here's how I want to connect those tools for each telemetry type" (pipelines)
 
 Here's the complete Collector configuration:
 
@@ -333,7 +326,7 @@ service: # Orchestrating everything
       exporters: [prometheus, otlp/dash0]
 ```
 
-**Key insight:** This single Collector configuration handles telemetry from dozens of microservices, processes it intelligently, and delivers it to multiple backends, all without any changes to your application code.
+This single Collector configuration handles telemetry from dozens of microservices, processes it intelligently, and delivers it to multiple backends, all without any changes to your application code.
 
 
 ---
@@ -368,16 +361,17 @@ Today is architecture overview only ("what" and "why" before diving into the "ho
 
 ## Key Takeaways
 
-**The Collector is a telemetry processing hub:**
-**Each pipeline handles one telemetry type** (traces, metrics, logs) and can be configured independently.
-**Data flows through stages:** Input → Transform → Output, with each stage having a specific responsibility.
-**Components are pluggable:** Mix and match receivers, processors, and exporters like building blocks.
+
 
 ---
 
 ## What I'm Taking Into Day 16
 
-**Key insight:** The Collector transforms OpenTelemetry from "one app → one backend" to "many apps → many backends" with intelligent processing in between.
+**The Collector is a telemetry processing hub:**
+- **Each pipeline handles one telemetry type** (traces, metrics, logs) and can be configured independently.
+- **Data flows through stages:** Input → Transform → Output, with each stage having a specific responsibility.
+- **Components are pluggable:** Mix and match receivers, processors, and exporters like building blocks.
+- The Collector transforms OpenTelemetry from "one app → one backend" to "many apps → many backends"
 
 **Tomorrow (Day 16)** we'll dive deep into **Receivers** and learn how to configure different input sources and understand the various protocols and formats the Collector can accept.
 
