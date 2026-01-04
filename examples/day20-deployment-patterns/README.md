@@ -1,216 +1,218 @@
-# Day 20: Deployment Patterns Examples
+# Day 20: Deployment & Scaling Examples
 
-This directory contains complete examples for different OpenTelemetry Collector deployment patterns.
+This directory contains beginner-friendly examples for deploying OpenTelemetry Collectors using Docker Compose.
 
 ## Files Overview
 
-- `agent-config.yaml` - Agent pattern configuration (minimal processing)
-- `gateway-config.yaml` - Gateway pattern configuration (advanced processing)
-- `kubernetes-agent-daemonset.yaml` - Kubernetes DaemonSet for agent deployment
-- `kubernetes-gateway-deployment.yaml` - Kubernetes Deployment for gateway pattern
+- `agent-config.yaml` - Simple agent configuration
+- `gateway-config.yaml` - Basic gateway configuration  
+- `docker-compose-agent.yml` - Agent pattern with Docker Compose
+- `docker-compose-gateway.yml` - Gateway pattern with Docker Compose
+- `docker-compose-scaling.yml` - Basic scaling with resource limits
 
-## Agent Pattern
+## Agent Pattern Example
 
-The agent pattern deploys Collectors close to applications for low latency and high availability.
+**When to use:** Single application, simple setup, getting started
 
-### Running the Agent Example
-
-```bash
-# Download the agent configuration
-curl -O https://raw.githubusercontent.com/your-repo/30DaysOtel/main/examples/day20-deployment-patterns/agent-config.yaml
-
-# Update the API token in the configuration
-sed -i 's/YOUR_API_TOKEN/your-actual-token/' agent-config.yaml
-
-# Run the Collector
-docker run -p 4317:4317 -p 4318:4318 -p 8888:8888 \
-  -v $(pwd)/agent-config.yaml:/etc/otelcol-contrib/config.yaml \
-  otel/opentelemetry-collector-contrib:latest
-```
-
-### Agent Pattern Benefits
-
-- **Low Latency**: Minimal network hops
-- **High Availability**: Independent failure domains
-- **Resource Isolation**: Predictable resource usage
-- **Simple Configuration**: Straightforward pipelines
-
-## Gateway Pattern
-
-The gateway pattern uses centralized Collectors for advanced processing and multi-backend routing.
-
-### Running the Gateway Example
+### Running the Agent Pattern
 
 ```bash
-# Download the gateway configuration
-curl -O https://raw.githubusercontent.com/your-repo/30DaysOtel/main/examples/day20-deployment-patterns/gateway-config.yaml
+# 1. Start the agent setup
+docker-compose -f docker-compose-agent.yml up
 
-# Update API tokens in the configuration
-sed -i 's/YOUR_PROD_API_TOKEN/your-production-token/' gateway-config.yaml
-sed -i 's/YOUR_ARCHIVE_API_TOKEN/your-archive-token/' gateway-config.yaml
-sed -i 's/YOUR_SECURITY_API_TOKEN/your-security-token/' gateway-config.yaml
-
-# Run the Collector
-docker run -p 4317:4317 -p 4318:4318 -p 8888:8888 \
-  -v $(pwd)/gateway-config.yaml:/etc/otelcol-contrib/config.yaml \
-  otel/opentelemetry-collector-contrib:latest
+# 2. Your app sends traces to the collector
+# 3. Collector forwards traces to Jaeger
+# 4. View traces at http://localhost:16686
 ```
 
-### Gateway Pattern Benefits
+**What happens:**
+```
+Your App → Collector (same host) → Jaeger
+```
 
-- **Centralized Control**: Single configuration point
-- **Advanced Processing**: Complex transformations and routing
-- **Cost Efficiency**: Shared infrastructure
-- **Multi-Backend Support**: Route to different backends
+**Benefits:**
+- Simple setup
+- Fast (no network delays)
+- Easy to debug
 
-## Kubernetes Deployments
+## Gateway Pattern Example
 
-### Agent DaemonSet
+**When to use:** Multiple applications, centralized control
 
-Deploy agents on every Kubernetes node:
+### Running the Gateway Pattern
 
 ```bash
-# Create namespace
-kubectl create namespace observability
+# 1. Start the gateway setup
+docker-compose -f docker-compose-gateway.yml up
 
-# Deploy the DaemonSet
-kubectl apply -f kubernetes-agent-daemonset.yaml
-
-# Check deployment
-kubectl get pods -n observability -l app=otel-collector-agent
+# 2. Multiple apps send traces to the same collector
+# 3. Gateway collector processes all data
+# 4. View traces at http://localhost:16686
 ```
 
-### Gateway Deployment
+**What happens:**
+```
+App 1 ──┐
+        ├──→ Gateway Collector → Jaeger
+App 2 ──┘
+```
 
-Deploy centralized gateways with auto-scaling:
+**Benefits:**
+- Centralized configuration
+- Advanced processing
+- Multiple apps, one collector
+
+## Basic Scaling Example
+
+**When to use:** Need to control resource usage
+
+### Running with Resource Limits
 
 ```bash
-# Create the secret with your API token
-kubectl create secret generic observability-secrets \
-  --from-literal=dash0-api-token=your-actual-token \
-  -n observability
+# 1. Start with resource limits
+docker-compose -f docker-compose-scaling.yml up
 
-# Deploy the gateway
-kubectl apply -f kubernetes-gateway-deployment.yaml
+# 2. Monitor resource usage
+docker stats
 
-# Check deployment
-kubectl get pods -n observability -l app=otel-collector-gateway
+# 3. Check collector metrics
+curl http://localhost:8888/metrics
 ```
 
-## Hybrid Pattern
+**What this prevents:**
+- Collector using too much memory
+- CPU spikes crashing your system
+- Resource starvation of other apps
 
-Combine both patterns by:
+## Configuration Files
 
-1. Deploy agents using the DaemonSet
-2. Deploy gateways using the Deployment
-3. Configure agents to send to gateways:
-
+### Agent Config (Simple)
 ```yaml
-# In agent configuration
+# agent-config.yaml - Basic forwarding
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+    timeout: 1s
+
 exporters:
-  otlp/gateway:
-    endpoint: http://otel-collector-gateway.observability.svc.cluster.local:4317
+  jaeger:
+    endpoint: jaeger:14250
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [jaeger]
 ```
 
-## Testing Your Deployment
+### Gateway Config (More Advanced)
+```yaml
+# gateway-config.yaml - Advanced processing
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+    timeout: 2s
+  attributes:
+    actions:
+      - key: environment
+        value: production
+        action: insert
+
+exporters:
+  jaeger:
+    endpoint: jaeger:14250
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [attributes, batch]
+      exporters: [jaeger]
+```
+
+## Testing Your Setup
 
 ### Send Test Data
 
 ```bash
-# Install otel-cli for testing
-go install github.com/equinix-labs/otel-cli@latest
-
-# Send test trace to agent (port 4317)
-otel-cli exec --endpoint http://localhost:4317 --insecure \
-  --service "test-service" --name "test-operation" \
-  -- echo "Testing agent pattern"
-
-# Send test trace to gateway (port 4317)
-otel-cli exec --endpoint http://localhost:4317 --insecure \
-  --service "test-service" --name "test-operation" \
-  -- echo "Testing gateway pattern"
+# Send a simple test trace
+curl -X POST http://localhost:4318/v1/traces \
+  -H "Content-Type: application/json" \
+  -d '{
+    "resourceSpans": [{
+      "resource": {
+        "attributes": [{
+          "key": "service.name",
+          "value": {"stringValue": "test-service"}
+        }]
+      },
+      "scopeSpans": [{
+        "spans": [{
+          "traceId": "12345678901234567890123456789012",
+          "spanId": "1234567890123456",
+          "name": "test-span",
+          "startTimeUnixNano": "1642680000000000000",
+          "endTimeUnixNano": "1642680001000000000"
+        }]
+      }]
+    }]
+  }'
 ```
 
-### Monitor Collector Health
+### Check Results
 
-```bash
-# Check Collector metrics
-curl http://localhost:8888/metrics
+1. **Jaeger UI:** http://localhost:16686 (view traces)
+2. **Collector metrics:** http://localhost:8888/metrics (health check)
+3. **Docker logs:** `docker-compose logs collector` (debug issues)
 
-# Look for key metrics:
-# - otelcol_receiver_accepted_spans_total
-# - otelcol_processor_batch_batch_send_size_sum
-# - otelcol_exporter_sent_spans_total
-```
+## Common Issues & Solutions
 
-## Configuration Tips
+**"Connection refused" errors:**
+- Make sure all services are running: `docker-compose ps`
+- Check if ports are available: `netstat -tulpn | grep 4318`
 
-### Agent Pattern Optimization
+**"No traces appearing":**
+- Check collector logs: `docker-compose logs collector`
+- Verify your app is sending to the right endpoint
+- Test with the curl command above
 
-```yaml
-processors:
-  batch:
-    timeout: 1s          # Fast batching for low latency
-    send_batch_size: 512 # Smaller batches
-  
-  memory_limiter:
-    limit_mib: 128       # Conservative memory limit
-```
-
-### Gateway Pattern Optimization
-
-```yaml
-processors:
-  batch:
-    timeout: 5s           # Longer batching for efficiency
-    send_batch_size: 2048 # Larger batches
-  
-  memory_limiter:
-    limit_mib: 1024       # More memory for processing
-```
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Agent can't reach gateway**
-   - Check network connectivity
-   - Verify service discovery (Kubernetes DNS)
-   - Check firewall rules
-
-2. **Gateway overwhelmed**
-   - Scale horizontally (increase replicas)
-   - Optimize processing (add filtering)
-   - Check resource limits
-
-3. **High memory usage**
-   - Tune batch processor settings
-   - Add memory_limiter processor
-   - Check for memory leaks in custom processors
-
-### Debug Commands
-
-```bash
-# Check Collector logs
-kubectl logs -n observability -l app=otel-collector-agent -f
-
-# Check resource usage
-kubectl top pods -n observability
-
-# Check HPA status
-kubectl get hpa -n observability
-```
+**"High memory usage":**
+- Use the scaling example with resource limits
+- Check collector metrics for queue sizes
+- Reduce batch sizes in configuration
 
 ## Next Steps
 
-1. **Monitor Performance**: Set up monitoring for your Collectors
-2. **Optimize Costs**: Implement filtering and sampling strategies
-3. **Scale Testing**: Test with production-like loads
-4. **Security**: Implement proper authentication and TLS
-5. **Backup Strategy**: Plan for Collector failures and data loss
+After trying these examples:
+1. **Modify configurations** to match your needs
+2. **Try different backends** (replace Jaeger with others)
+3. **Add more processing** (filters, transformations)
+4. **Scale up** when you need more capacity
 
-## Related Examples
+## Quick Decision Guide
 
-- [Day 16: Receivers](../day16-receivers/) - Understanding data ingestion
-- [Day 17: Processors](../day17-processors/) - Data transformation
-- [Day 18: Exporters](../day18-exporters/) - Multi-backend strategies
+**Choose Agent Pattern when:**
+- You have one application
+- You want the simplest setup
+- Low latency is important
+
+**Choose Gateway Pattern when:**
+- You have multiple applications  
+- You want centralized control
+- You need advanced processing
+
+**Add Resource Limits when:**
+- Running in production
+- Sharing servers with other apps
+- Want to prevent resource issues

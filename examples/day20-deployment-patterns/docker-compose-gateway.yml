@@ -1,0 +1,45 @@
+# Gateway Pattern with Docker Compose
+# Multiple applications send to one centralized Collector
+
+version: '3.8'
+services:
+  # Multiple applications
+  app1:
+    image: my-app-1
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://gateway-collector:4318
+  
+  app2:
+    image: my-app-2
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://gateway-collector:4318
+
+  # Centralized gateway collector
+  gateway-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./gateway-config.yaml:/etc/otel-collector-config.yaml
+    ports:
+      - "4317:4317"   # gRPC
+      - "4318:4318"   # HTTP
+      - "8888:8888"   # Metrics endpoint
+
+  # Jaeger for viewing traces
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    ports:
+      - "16686:16686"  # Jaeger UI
+      - "14250:14250"  # gRPC endpoint
+
+  # Prometheus for metrics (optional)
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"    # Prometheus UI
+
+# Usage:
+# 1. docker-compose -f docker-compose-gateway.yml up
+# 2. Both apps send traces to the same gateway collector
+# 3. View traces at http://localhost:16686
+# 4. View metrics at http://localhost:8888/metrics

@@ -1,0 +1,42 @@
+# Basic Scaling Example with Docker Compose
+# Shows resource limits and multiple collector instances
+
+version: '3.8'
+services:
+  # Your application
+  my-app:
+    image: my-node-app
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://collector:4318
+
+  # Collector with resource limits
+  collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./agent-config.yaml:/etc/otel-collector-config.yaml
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+      - "8888:8888"
+    deploy:
+      resources:
+        limits:
+          memory: 512M      # Never use more than 512MB
+          cpus: '0.5'       # Never use more than 50% CPU
+        reservations:
+          memory: 256M      # Always guarantee 256MB
+          cpus: '0.25'      # Always guarantee 25% CPU
+
+  # Jaeger backend
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    ports:
+      - "16686:16686"
+      - "14250:14250"
+
+# Usage:
+# 1. docker-compose -f docker-compose-scaling.yml up
+# 2. Monitor resource usage: docker stats
+# 3. Check collector metrics: curl http://localhost:8888/metrics
+# 4. The collector will never exceed 512MB memory or 50% CPU

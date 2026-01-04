@@ -1,0 +1,35 @@
+# Agent Pattern with Docker Compose
+# One Collector runs alongside your application
+
+version: '3.8'
+services:
+  # Your application
+  my-app:
+    image: my-node-app
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://collector:4318
+    depends_on:
+      - collector
+
+  # Collector running as agent (close to app)
+  collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./agent-config.yaml:/etc/otel-collector-config.yaml
+    ports:
+      - "4317:4317"   # gRPC
+      - "4318:4318"   # HTTP
+      - "8888:8888"   # Metrics endpoint
+
+  # Jaeger for viewing traces
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    ports:
+      - "16686:16686"  # Jaeger UI
+      - "14250:14250"  # gRPC endpoint
+
+# Usage:
+# 1. docker-compose -f docker-compose-agent.yml up
+# 2. Send traces from your app
+# 3. View traces at http://localhost:16686
