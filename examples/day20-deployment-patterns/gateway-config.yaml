@@ -1,0 +1,142 @@
+# OpenTelemetry Collector Gateway Configuration
+# Deploy this as centralized service for advanced processing
+
+receivers:
+  # Accept from agents and applications
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317  # Accept from anywhere
+      http:
+        endpoint: 0.0.0.0:4318
+  
+  # Legacy Prometheus metrics
+  prometheus:
+    config:
+      scrape_configs:
+        - job_name: 'legacy-apps'
+          static_configs:
+            - targets: ['app1:8080', 'app2:8080']
+          scrape_interval: 30s
+
+processors:
+  # Efficient batching for high throughput
+  batch:
+    timeout: 5s
+    send_batch_size: 2048
+  
+  # Add enterprise context
+  attributes/enterprise:
+    actions:
+      - key: company.division
+        value: "engineering"
+        action: insert
+      - key: environment
+        from_attribute: deployment.environment
+        action: insert
+      - key: region
+        value: "us-west-2"
+        action: insert
+  
+  # Advanced business logic transformations
+  transform/business-context:
+    trace_statements:
+      - context: span
+        statements:
+          # Categorize business functions
+          - set(attributes["business.function"], "payments") where name matches ".*payment.*"
+          - set(attributes["business.function"], "user-mgmt") where name matches ".*(user|auth|login).*"
+          - set(attributes["business.function"], "orders") where name matches ".*(order|cart|checkout).*"
+          
+          # Set criticality based on business function
+          - set(attributes["business.critical"], "true") where attributes["business.function"] in ["payments", "user-mgmt"]
+          - set(attributes["business.critical"], "false") where attributes["business.function"] not in ["payments", "user-mgmt"]
+          
+          # Add SLA targets
+          - set(attributes["sla.target"], 99.9) where attributes["business.critical"] == "true"
+          - set(attributes["sla.target"], 99.0) where attributes["business.critical"] == "false"
+  
+  # Cost optimization through intelligent filtering
+  filter/cost-optimization:
+    traces:
+      span:
+        # Remove noise
+        - 'name matches ".*health.*" and attributes["http.status_code"] < 400'
+        - 'duration < 1000000 and attributes["http.status_code"] < 400'  # < 1ms successful calls
+        
+        # Sample high-volume, low-value endpoints
+        - 'name == "GET /api/search" and TraceID() % 10 != 0'  # Keep 10%
+        - 'name == "GET /api/autocomplete" and TraceID() % 20 != 0'  # Keep 5%
+  
+  # Memory protection
+  memory_limiter:
+    limit_mib: 1024
+
+exporters:
+  # Production observability platform
+  otlp/production:
+    endpoint: https://api.dash0.com:4317
+    headers:
+      authorization: "Bearer YOUR_PROD_API_TOKEN"
+    compression: gzip
+    retry_on_failure:
+      enabled: true
+      max_elapsed_time: 300s
+  
+  # Cost-effective storage for non-critical data
+  otlp/archive:
+    endpoint: https://archive.observability.com:4317
+    headers:
+      authorization: "Bearer YOUR_ARCHIVE_API_TOKEN"
+    compression: gzip
+  
+  # Security monitoring (critical traces only)
+  otlp/security:
+    endpoint: https://security.company.com:4317
+    headers:
+      authorization: "Bearer YOUR_SECURITY_API_TOKEN"
+    compression: gzip
+
+service:
+  extensions: []
+  
+  pipelines:
+    # Critical business data - full processing and multiple destinations
+    traces/critical:
+      receivers: [otlp]
+      processors: [
+        memory_limiter,
+        attributes/enterprise,
+        transform/business-context,
+        batch
+      ]
+      exporters: [otlp/production, otlp/security]
+    
+    # Standard data - basic processing and archive
+    traces/standard:
+      receivers: [otlp]
+      processors: [
+        memory_limiter,
+        attributes/enterprise,
+        filter/cost-optimization,
+        batch
+      ]
+      exporters: [otlp/archive]
+    
+    # Metrics from all sources
+    metrics:
+      receivers: [otlp, prometheus]
+      processors: [memory_limiter, attributes/enterprise, batch]
+      exporters: [otlp/production]
+    
+    # Logs with business context
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, attributes/enterprise, batch]
+      exporters: [otlp/production]
+
+  telemetry:
+    logs:
+      level: "info"
+    metrics:
+      address: 0.0.0.0:8888  # Expose metrics for monitoring

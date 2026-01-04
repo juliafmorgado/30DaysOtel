@@ -1,0 +1,64 @@
+# OpenTelemetry Collector Agent Configuration
+# Deploy this close to applications (DaemonSet, sidecar, or per-host)
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: localhost:4317  # Local only - applications connect here
+      http:
+        endpoint: localhost:4318
+
+processors:
+  # Minimal processing for performance
+  batch:
+    timeout: 1s
+    send_batch_size: 512
+  
+  # Basic filtering to reduce noise
+  filter/health-checks:
+    traces:
+      span:
+        - 'name matches ".*health.*" and attributes["http.status_code"] < 400'
+  
+  # Memory protection
+  memory_limiter:
+    limit_mib: 128
+
+exporters:
+  # Direct to backend (simple agent)
+  otlp/backend:
+    endpoint: https://api.dash0.com:4317
+    headers:
+      authorization: "Bearer YOUR_API_TOKEN"
+    compression: gzip
+  
+  # Or to gateway for advanced processing
+  otlp/gateway:
+    endpoint: https://gateway.company.com:4317
+    compression: gzip
+
+service:
+  extensions: []
+  
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, filter/health-checks, batch]
+      exporters: [otlp/backend]  # Change to otlp/gateway for hybrid pattern
+    
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlp/backend]
+    
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlp/backend]
+
+  telemetry:
+    logs:
+      level: "info"
+    metrics:
+      address: localhost:8888  # Collector metrics endpoint
