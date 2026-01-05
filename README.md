@@ -73,14 +73,13 @@ This is a **public learning project** designed to help others follow along and b
 
 | Day | Topic | What We'll Learn |
 |-----|-------|-------------------|
-| 15 | Collector Architecture | Why the Collector exists; receivers → processors → exporters |
+| 15 | Collector Architecture | Why the Collector exists; receivers → processors → exporters pipeline flow |
 | 16 | Receivers | OTLP, Filelog, Prometheus; how telemetry enters the Collector |
-| 17 | Processors | Batch, transform, attributes, tail sampling; shaping your data |
-| 18 | Exporters | Sending to Jaeger, Prometheus, Loki, Tempo; multi-backend strategies |
-| 19 | Transformations (OTTL) | OpenTelemetry Transformation Language; advanced filtering and manipulation |
-| 20 | Deployment Models | Agent, gateway, sidecar, DaemonSet; where to run the Collector |
-| 21 | Scaling | Load balancing, high availability, multi-Collector architectures |
-| 22 | Week 3 Review | Consolidate Collector knowledge |
+| 17 | Processors | Batch, attributes, filter, transform; essential data processing patterns |
+| 18 | Exporters | Multi-backend strategies; Jaeger, Prometheus, Loki routing |
+| 19 | Transformations (OTTL) | OpenTelemetry Transformation Language; business-friendly data manipulation |
+| 20 | Deployment & Scaling | Agent vs Gateway patterns; basic scaling concepts |
+| 21 | Week 3 Recap | Insights and wisdom; mindset shifts from learning to architecting |
 
 </details>
 
@@ -89,14 +88,15 @@ This is a **public learning project** designed to help others follow along and b
 
 | Day | Topic | What We'll Learn |
 |-----|-------|-------------------|
-| 23 | Debugging the Collector | Logging exporters, zPages, troubleshooting common issues |
-| 24 | Debugging Traces | Propagation failures, broken traces, missing spans |
-| 25 | Backpressure & Error Handling | Dropped spans, memory limits, graceful degradation |
-| 26 | Schema Management | Semantic convention versions, schema evolution |
-| 27 | Advanced Patterns + Architecture | Message queues, async patterns, designing observable systems |
-| 28 | **Final Project** | Build a complete system: app + Collector + transformations + multiple backends |
-| 29 | Week 4 Review | Lessons learned, what worked, what didn't |
-| 30 | Mock Exam + Final Recap | OTCA exam prep, architecture review, next steps |
+| 22 | Debugging the Collector | Systematic debugging approaches, logging exporters, health checks, metrics analysis |
+| 23 | Debugging Distributed Traces | Finding lost spans, broken context propagation, systematic troubleshooting workflows |
+| 24 | Handling Production Issues at Scale | Backpressure management, dropped spans, error handling, resource management |
+| 25 | Production Best Practices | Security (TLS, PII protection), performance optimization, monitoring strategies |
+| 26 | Real-World Architecture Patterns | Startup growth, enterprise multi-tenant, hybrid cloud, cost-optimized patterns |
+| 27 | **Final Project** | Build complete e-commerce observability stack with security, cost optimization, business context |
+| 28 | Week 4 Recap | From student to professional - career guidance, skills assessment, next steps |
+| 29 | Advanced Topics Preview | Custom instrumentation, advanced sampling, security observability, emerging technologies |
+| 30 | Certification & Graduation | Professional assessment, career opportunities, community building, continued learning |
 
 </details>
 
