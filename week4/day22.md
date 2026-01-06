@@ -58,9 +58,8 @@ service:
       level: detailed         # More detailed metrics
 ```
 
-The key metrics to focus on are `otelcol_receiver_accepted_spans` (are spans coming in?), `otelcol_processor_batch_batch_send_size` (are batches being created?), `otelcol_exporter_sent_spans` (are spans going out?), and `otelcol_exporter_send_failed_spans` (are exports failing?). If you see zero accepted spans, the problem is before the Collector. If spans are accepted but not exported, you have a processing or export issue.
-
 # Check exporter metrics
+```
 curl http://localhost:8888/metrics | grep otelcol_exporter
 ```
 
