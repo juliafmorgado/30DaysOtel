@@ -116,7 +116,13 @@ node --require ./instrumentation.js app.js
 
 The `--require` flag tells Node.js to load the instrumentation file before your application code runs. This gives OpenTelemetry a chance to wrap your libraries before they're used.
 
-**Your application code (`app.js`) hasn't changed at all.** But now when someone calls `GET /users/123`:
+> [!IMPORTANT]
+>
+> OpenTelemetry instrumentation is runtime instrumentation meaning it needs to be active while your app is running.
+>
+> If any part stops running, the telemetry pipeline breaks.
+
+**As you can see, our application code (`app.js`) hasn't changed at all.** But now when someone calls `GET /users/123`:
 
 **You get traces:**
 ```

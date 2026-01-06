@@ -67,7 +67,7 @@ OpenTelemetry splits observability into two completely separate concerns:
 
 Let’s say we want to observe what happens when a user is loaded from the database.
 
-**Step 1: We add instrumentation (using the API)**
+**Step 1: We add manual instrumentation (using the API)**
 
 ```
 const { trace } = require('@opentelemetry/api');
@@ -83,7 +83,7 @@ function getUser(id) {
   span.end();                                 // API call
   return user;
 }
-````
+```
 
 What’s happening here?
 
@@ -97,6 +97,7 @@ At this point, we’ve added observability signals, but we haven’t decided wha
 **Step 2: The SDK provides the implementation**
 
 Somewhere else (usually in `instrumentation.js`), we configure the SDK:
+
 ```
 const { NodeSDK } = require('@opentelemetry/sdk-node');
 const { OTLPTraceExporter } = require('@opentelemetry/exporter-trace-otlp-http');
@@ -108,7 +109,7 @@ const sdk = new NodeSDK({
 });
 
 sdk.start();
-````
+```
 
 Now, when our code calls `tracer.startSpan('get_user');`, the SDK implementation:
 
@@ -145,7 +146,7 @@ The OpenTelemetry API is the part that goes in our application code.
 
 **Lightweight:** The API is just interfaces and basic data structures. It doesn't include heavy networking code, complex processing logic, or large dependencies.
 
-**Example of API code in our application:**
+**Example of API code in our application (manual instrumentation):**
 
 ```javascript
 // app.js - This is what we write in our application
