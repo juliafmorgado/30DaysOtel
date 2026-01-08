@@ -50,7 +50,7 @@ It's not just names—it's also the format of values:
 
 Here's the flow:
 
-![OpenTelemetry observability flowchart](images/day5-otel-observability-flowchart.png.png)
+<img src="images/day5-otel-observability-flowchart.png.png" alt="OpenTelemetry observability flowchart" width="400" height="600">
 
 **Without semantic conventions, that last step breaks.** You'd have traces, but they'd be incompatible islands of data.
 
