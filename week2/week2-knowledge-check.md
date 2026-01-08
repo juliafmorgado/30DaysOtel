@@ -238,7 +238,7 @@ const sdk = new NodeSDK({
 **Answer:**
 - **`resource`:** Identifies your service as "greeting-service" version "1.0.0" - this appears on all your telemetry
 - **`traceExporter`:** Sends traces to Jaeger using OTLP protocol on port 4318
-- **`instrumentations`:** Automatically creates spans for HTTP requests, Express routes, and other operations
+- **`instrumentations`:** Wraps libraries at runtime to automatically capture spans for HTTP requests, Express routes, and other operations
 
 **Hidden magic:** The SDK also automatically batches spans for efficiency and adds system information like Node.js version and hostname.
 </details>

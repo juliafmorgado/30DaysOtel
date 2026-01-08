@@ -109,7 +109,7 @@ This tells OpenTelemetry "where" to send trace data. OTLP (OpenTelemetry Protoco
 ```javascript
 instrumentations: [getNodeAutoInstrumentations()]
 ```
-This automatically creates spans for Express routes, HTTP requests, database calls, and other common operations. We'll add our own manual spans on top of these automatic ones.
+This wraps existing libraries at runtime to automatically capture spans for Express routes, HTTP requests, database calls, and other common operations. We'll add our own manual spans on top of these automatic ones.
 
 **Why we configure this separately:** Remember from [Day 8](./day8.md) - this separation means we can change SDK implementations (standard → vendor distribution) or configuration (100% sampling → 10% sampling) without touching our application code.
 
