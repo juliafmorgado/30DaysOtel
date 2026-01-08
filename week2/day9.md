@@ -8,7 +8,7 @@ Yesterday we learned that the OpenTelemetry API is what we use in our code, whil
 ## What we already know from Week 1
 
 - **[Day 4](https://github.com/juliafmorgado/30DaysOtel/blob/main/week1/day4.md):** We learned spans have names, attributes, and parent-child relationships → Today we'll create those ourselves
-- **[Day 5](https://github.com/juliafmorgado/30DaysOtel/blob/main/week1/day5.md):** We learned semantic conventions like `http.method` → Today we'll use them in `span.setAttribute()`
+- **[Day 5](https://github.com/juliafmorgado/30DaysOtel/blob/main/week1/day5.md):** We learned semantic conventions like `http.request.method` → Today we'll use them in `span.setAttribute()`
 - **[Day 6](https://github.com/juliafmorgado/30DaysOtel/blob/main/week1/day6.md):** We learned auto-instrumentation calls the Tracing API → Today we'll call the same API manually
 
 **The API methods aren't new, we've been learning about them all week.** Today we practice using them.
@@ -289,9 +289,9 @@ Express auto-instrumentation created the root span automatically:
 ```javascript
 // This happened automatically when the request arrived
 GET /hello/Alice
-  http.method = "GET"
+  http.request.method = "GET"
   http.route = "/hello/:name"
-  http.status_code = 200
+  http.response.status_code = 200
 ```
 
 ### 2. Our manual instrumentation (we wrote this)

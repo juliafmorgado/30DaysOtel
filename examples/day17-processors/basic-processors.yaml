@@ -33,7 +33,7 @@ processors:
         - 'name == "GET /health"'
         - 'name == "GET /ready"'
         # Remove 404s
-        - 'attributes["http.status_code"] == 404'
+        - 'attributes["http.response.status_code"] == 404'
 
 exporters:
   logging:

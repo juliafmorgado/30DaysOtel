@@ -13,7 +13,7 @@ Today we’ll look at one of OpenTelemetry’s most important design decisions: 
 **We've been learning about the API during week 1**
 
 - **[Day 4](https://github.com/juliafmorgado/30DaysOtel/blob/main/week1/day4.md):** When we learned `span.setAttribute('user.id', '12345')` — that's the API
-- **[Day 5](https://github.com/juliafmorgado/30DaysOtel/blob/main/week1/day5.md):** When we learned semantic conventions like `http.method` — those are used with the API
+- **[Day 5](https://github.com/juliafmorgado/30DaysOtel/blob/main/week1/day5.md):** When we learned semantic conventions like `http.request.method` — those are used with the API
 - **[Day 6](https://github.com/juliafmorgado/30DaysOtel/blob/main/week1/day6.md):** When we learned auto-instrumentation — those libraries use the API
 
 The API isn't new. What's new today is understanding why it's separate from the SDK.

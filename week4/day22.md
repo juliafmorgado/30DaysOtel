@@ -105,8 +105,8 @@ service:
   "spanID": "def456...", 
   "name": "GET /api/users",
   "attributes": {
-    "http.method": "GET",
-    "http.status_code": 200
+    "http.request.method": "GET",
+    "http.response.status_code": 200
   }
 }
 ```
@@ -119,7 +119,7 @@ processors:
   filter/debug-errors:
     traces:
       span:
-        - 'attributes["http.status_code"] >= 400'
+        - 'attributes["http.response.status_code"] >= 400'
 
 exporters:
   logging/errors:

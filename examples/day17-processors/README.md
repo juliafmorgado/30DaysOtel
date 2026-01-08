@@ -87,7 +87,7 @@ curl -X POST http://localhost:4318/v1/traces \
           "startTimeUnixNano": "1642680000000000000",
           "endTimeUnixNano": "1642680001000000000",
           "attributes": [{
-            "key": "http.status_code",
+            "key": "http.response.status_code",
             "value": {"intValue": "200"}
           }]
         }]

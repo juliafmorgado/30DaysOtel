@@ -25,7 +25,7 @@ That recording code is called **instrumentation**.
 
 This data gets created in two fundamentally different ways:
 
-1. **Auto-instrumentation** — Libraries/frameworks automatically record observability data for you
+1. **Auto-instrumentation** — Code added at runtime that wraps existing libraries/frameworks to automatically capture observability data without modifying your application code
 2. **Manual instrumentation** — You explicitly write code to record observability data
 
 The reason both exist is about **what they can see**:
@@ -134,9 +134,9 @@ Trace abc123
 **With semantic conventions automatically applied:**
 ```
 Span: GET /users/:id
-  http.method = "GET"
+  http.request.method = "GET"
   http.route = "/users/:id"
-  http.status_code = 200
+  http.response.status_code = 200
   http.target = "/users/123"
 
 Span: SELECT users
@@ -176,14 +176,14 @@ const originalRouteHandler = express.Router.handle;
 express.Router.handle = function wrappedHandler(req, res, next) {
   // Start a span
   const span = tracer.startSpan(`${req.method} ${req.route.path}`);
-  span.setAttribute('http.method', req.method);
+  span.setAttribute('http.request.method', req.method);
   span.setAttribute('http.route', req.route.path);
   
   // Call the original function (your code runs)
   const result = originalRouteHandler.call(this, req, res, next);
   
   // End the span
-  span.setAttribute('http.status_code', res.statusCode);
+  span.setAttribute('http.response.status_code', res.statusCode);
   span.end();
   
   return result;
@@ -277,7 +277,7 @@ Manual instrumentation means calling functions from the **OpenTelemetry API**.
 >**We've actually been learning about these functions all week without realizing it:**
 >
 >- **Day 4:** When you learned `span.setAttribute('user.id', '12345')` — that's the OpenTelemetry API
->- **Day 5:** When you learned semantic conventions like `http.method` — those are used WITH the OpenTelemetry API
+>- **Day 5:** When you learned semantic conventions like `http.request.method` — those are used WITH the OpenTelemetry API
 >
 >**Auto-instrumentation and manual instrumentation both use the same API.** The only difference is:
 >- Auto-instrumentation: Libraries call these functions for us

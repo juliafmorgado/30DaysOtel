@@ -188,7 +188,7 @@ processors:
   filter:
     traces:
       span:
-        - 'attributes["http.status_code"] == 404' # Drop 404 errors to reduce costs
+        - 'attributes["http.response.status_code"] == 404' # Drop 404 errors to reduce costs
 ```
 Drops unwanted telemetry data based on rules we define. 
 

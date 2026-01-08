@@ -178,7 +178,7 @@ D) Attributes are for traces; resources are for metrics
 **Answer: C**
 
 **Span attributes** describe the specific operation:
-- `http.method = "POST"`
+- `http.request.method = "POST"`
 - `db.statement = "SELECT * FROM orders"`
 - `customer.id = "67890"`
 
@@ -236,7 +236,7 @@ D) To ensure spans from different services/languages can be queried consistently
 
 **Answer: D**
 
-Without conventions, one service might use `request_method`, another `http.method`, another `method`. You can't write one query that works everywhere. Semantic conventions standardize attribute names so telemetry is interoperable.
+Without conventions, one service might use `request_method`, another `http.request.method`, another `method`. You can't write one query that works everywhere. Semantic conventions standardize attribute names so telemetry is interoperable.
 
 </details>
 
@@ -247,7 +247,7 @@ Without conventions, one service might use `request_method`, another `http.metho
 
 A) `method: "post"`, `path: "/orders"`, `status: "200"`  
 B) `request.method: "POST"`, `request.path: "/orders"`, `response.code: 200`  
-C) `http.method: "POST"`, `http.route: "/orders"`, `http.status_code: 200`  
+C) `http.request.method: "POST"`, `http.route: "/orders"`, `http.response.status_code: 200`  
 D) `httpMethod: "POST"`, `httpRoute: "/orders"`, `statusCode: 200`  
 
 <details>
@@ -256,9 +256,9 @@ D) `httpMethod: "POST"`, `httpRoute: "/orders"`, `statusCode: 200`
 **Answer: C**
 
 Semantic conventions specify:
-- `http.method` (uppercase: GET, POST, PUT)
+- `http.request.method` (uppercase: GET, POST, PUT)
 - `http.route` (route pattern, not full URL)
-- `http.status_code` (integer, not string)
+- `http.response.status_code` (integer, not string)
 
 Notice the pattern: `namespace.attribute_name` (all lowercase with underscores).
 
@@ -301,7 +301,7 @@ span.set_attribute('order_currency', 'EUR')
 Follow the semantic convention pattern even for custom attributes:
 - Use a namespace (`order.*` for order-related attributes)
 - Use dot notation (`order.total`, not `order_total`)
-- Use lowercase with underscores within names (`http.status_code`)
+- Use lowercase with underscores within names (`http.response.status_code`)
 
 This keeps your custom attributes consistent with OpenTelemetry standards.
 
@@ -322,7 +322,7 @@ D) High-cardinality attributes have many unique values; low-cardinality have few
 
 **Answer: D**
 
-**Low cardinality:** `http.method` (GET, POST, PUT, DELETE... ~10 values)  
+**Low cardinality:** `http.request.method` (GET, POST, PUT, DELETE... ~10 values)  
 **High cardinality:** `customer.id` (millions of unique customers)
 
 High-cardinality attributes are useful for debugging but expensive to store and query at scale. Use them deliberately.
@@ -499,7 +499,7 @@ D) You used semantic conventions incorrectly
 
 **Answer: D**
 
-Incorrect semantic conventions (e.g., using `request_type` instead of `http.method`) won't prevent traces from appearing. They just make the attributes inconsistent.
+Incorrect semantic conventions (e.g., using `request_type` instead of `http.request.method`) won't prevent traces from appearing. They just make the attributes inconsistent.
 
 Common causes of missing traces:
 - SDK not initialized

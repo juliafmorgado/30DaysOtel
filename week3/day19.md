@@ -115,7 +115,7 @@ OTTL can work on different parts of our telemetry data. Think of contexts as "wh
 **Concat()** - Combine text:
 ```yaml
 # Create descriptive endpoint names
-- set(attributes["endpoint"], Concat([attributes["http.method"], " ", attributes["http.route"]], ""))
+- set(attributes["endpoint"], Concat([attributes["http.request.method"], " ", attributes["http.route"]], ""))
 ```
 
 **Split()** - Break apart text:
@@ -229,7 +229,7 @@ statements:
 - set(attributes["test"], "found") where name == "POST /api/users"
 
 # Then add more conditions
-- set(attributes["test"], "found") where name == "POST /api/users" and attributes["http.status_code"] >= 400
+- set(attributes["test"], "found") where name == "POST /api/users" and attributes["http.response.status_code"] >= 400
 ```
 
 > **Complete debugging setup:** [`debug-config.yaml`](../examples/day19-ottl/debug-config.yaml)

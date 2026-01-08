@@ -61,8 +61,8 @@ processors:
     traces:
       span:
         # Remove noise
-        - 'name matches ".*health.*" and attributes["http.status_code"] < 400'
-        - 'duration < 1000000 and attributes["http.status_code"] < 400'  # < 1ms successful calls
+        - 'name matches ".*health.*" and attributes["http.response.status_code"] < 400'
+        - 'duration < 1000000 and attributes["http.response.status_code"] < 400'  # < 1ms successful calls
         
         # Sample high-volume, low-value endpoints
         - 'name == "GET /api/search" and TraceID() % 10 != 0'  # Keep 10%

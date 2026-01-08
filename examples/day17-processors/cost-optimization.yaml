@@ -15,7 +15,7 @@ processors:
     traces:
       span:
         # Remove successful health checks
-        - 'name matches ".*health.*" and attributes["http.status_code"] < 400'
+        - 'name matches ".*health.*" and attributes["http.response.status_code"] < 400'
         
         # Remove very short spans (likely noise)
         - 'duration < 1000000'  # Less than 1ms
@@ -24,7 +24,7 @@ processors:
         - 'attributes["rpc.system"] == "grpc" and attributes["rpc.grpc.status_code"] == 0 and duration < 10000000'  # < 10ms
         
         # Sample high-volume endpoints (keep only 10%)
-        - 'name == "GET /api/search" and attributes["http.status_code"] < 400 and TraceID() % 10 != 0'
+        - 'name == "GET /api/search" and attributes["http.response.status_code"] < 400 and TraceID() % 10 != 0'
         
         # Remove debug spans in production
         - 'attributes["span.kind"] == "internal" and attributes["debug"] == "true"'

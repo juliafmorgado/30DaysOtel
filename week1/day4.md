@@ -134,9 +134,9 @@ Now you have context. You can see:
 
 **For HTTP requests:**
 ```
-http.method: "POST"
+http.request.method: "POST"
 http.route: "/pay"
-http.status_code: 200
+http.response.status_code: 200
 http.target: "/pay?user_id=12345"
 ```
 
@@ -151,7 +151,7 @@ db.operation: "SELECT"
 
 **Cardinality** = how many different values an attribute can have.
 
-- `http.method` → Low cardinality (GET, POST, PUT, DELETE... ~10 values)
+- `http.request.method` → Low cardinality (GET, POST, PUT, DELETE... ~10 values)
 - `user.id` → High cardinality (millions of possible users)
 
 High-cardinality attributes are great for debugging individual requests,

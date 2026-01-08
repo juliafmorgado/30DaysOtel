@@ -84,8 +84,8 @@ processors:
       # Calculate business impact
       - context: span
         statements:
-          - set(attributes["business.impact"], "high") where attributes["business.critical"] == "true" and attributes["http.status_code"] >= 500
-          - set(attributes["business.impact"], "medium") where attributes["business.critical"] == "true" and attributes["http.status_code"] >= 400
+          - set(attributes["business.impact"], "high") where attributes["business.critical"] == "true" and attributes["http.response.status_code"] >= 500
+          - set(attributes["business.impact"], "medium") where attributes["business.critical"] == "true" and attributes["http.response.status_code"] >= 400
           - set(attributes["business.impact"], "low") where attributes["business.critical"] != "true"
   
   # Batch processing

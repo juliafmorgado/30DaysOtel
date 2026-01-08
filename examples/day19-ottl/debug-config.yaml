@@ -77,12 +77,12 @@ processors:
           - set(attributes["debug.performance_rule"], "slow") where duration >= 500000000
           
           # Error handling with debug tracking
-          - set(attributes["error.detected"], "true") where attributes["http.status_code"] >= 400
-          - set(attributes["debug.error_rule"], "http_status") where attributes["http.status_code"] >= 400
+          - set(attributes["error.detected"], "true") where attributes["http.response.status_code"] >= 400
+          - set(attributes["debug.error_rule"], "http_status") where attributes["http.response.status_code"] >= 400
           
           # Debug condition checking
-          - set(attributes["debug.has_http_method"], "true") where attributes["http.method"] != nil
-          - set(attributes["debug.has_status_code"], "true") where attributes["http.status_code"] != nil
+          - set(attributes["debug.has_http_method"], "true") where attributes["http.request.method"] != nil
+          - set(attributes["debug.has_status_code"], "true") where attributes["http.response.status_code"] != nil
           - set(attributes["debug.has_user_id"], "true") where attributes["user.id"] != nil
           
           # Count transformations applied

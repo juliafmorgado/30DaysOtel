@@ -6,7 +6,7 @@ Welcome!
 > 
 > It's the industry-standard framework for collecting and exporting observability data (traces, metrics, logs) in a vendor-neutral way. Think of it as the unified language that lets you understand what's happening inside your distributed systems.
 
-This is a **public learning project** designed to help others follow along and build production-ready observability skills step-by-step. Whether you're a complete beginner or already familiar with observability concepts, you'll find structured content, hands-on examples, and real-world patterns here. Feel free to follow along with me!
+This is a **public learning project** designed to help others follow along and build production-ready observability skills step-by-step. Whether you're a complete beginner or looking to get certified, you'll find structured content, hands-on examples, and comprehensive exam preparation here.
 
 ---
 
@@ -17,7 +17,7 @@ This is a **public learning project** designed to help others follow along and b
 | **1** | Observability Fundamentals | Understanding traces, metrics, logs; semantic conventions; auto vs manual instrumentation | Mental models + reading real traces |
 | **2** | OpenTelemetry APIs & SDK | Hands-on with Tracing API, Metrics API, Logs API, context propagation, SDK pipelines | Instrumented Node.js apps |
 | **3** | OpenTelemetry Collector | Receivers, processors, exporters, transformations (OTTL), deployment models, scaling | Full collector pipeline + multi-backend routing |
-| **4** | Production Patterns & Final Project | Debugging traces, schema management, backpressure handling, architecture design | Complete observable system (app + collector + backends) |
+| **4** | Production & Certification | Debugging, security, Kubernetes Operator, architecture patterns, OTCA exam prep | Complete observable system + certification readiness |
 
 ---
 
@@ -31,8 +31,12 @@ This is a **public learning project** designed to help others follow along and b
 - Build a **final project** with:
   - Instrumented multi-service application
   - Full collector pipeline with transformations (OTTL)
-  - Multiple backends (Jaeger for traces, Prometheus for metrics, Dash0 for everything)
-- Be ready to pass the [**OpenTelemetry Certified Associate (OTCA)**](https://training.linuxfoundation.org/certification/opentelemetry-certified-associate-otca/) exam
+  - Multiple backends (Jaeger for traces, Prometheus for metrics, Loki for logs)
+  - Production-ready security and cost optimization
+- **Pass the OpenTelemetry Certified Associate (OTCA) exam** with comprehensive preparation including:
+  - Complete coverage of all 4 certification domains
+  - Practice questions and assessment scenarios
+  - Study guide and exam strategies
 
 ---
 
@@ -84,19 +88,19 @@ This is a **public learning project** designed to help others follow along and b
 </details>
 
 <details>
-<summary><strong>Week 4: Production Patterns & Final Project</strong></summary>
+<summary><strong>Week 4: Production Patterns & Certification Prep</strong></summary>
 
 | Day | Topic | What We'll Learn |
 |-----|-------|-------------------|
 | 22 | Debugging the Collector | Systematic debugging approaches, logging exporters, health checks, metrics analysis |
 | 23 | Debugging Distributed Traces | Finding lost spans, broken context propagation, systematic troubleshooting workflows |
-| 24 | Handling Production Issues at Scale | Backpressure management, dropped spans, error handling, resource management |
+| 24 | Production Issues at Scale | Backpressure management, dropped spans, error handling, resource management |
 | 25 | Production Best Practices | Security (TLS, PII protection), performance optimization, monitoring strategies |
-| 26 | Real-World Architecture Patterns | Startup growth, enterprise multi-tenant, hybrid cloud, cost-optimized patterns |
-| 27 | **Final Project** | Build complete e-commerce observability stack with security, cost optimization, business context |
-| 28 | Week 4 Recap | From student to professional - career guidance, skills assessment, next steps |
+| 26 | OpenTelemetry Operator Overview | Kubernetes-native observability, auto-instrumentation, CRDs, deployment modes |
+| 27 | Real-World Architecture Patterns | Startup growth, enterprise multi-tenant, hybrid cloud, cost-optimized patterns |
+| 28 | **Final Project** | Build complete e-commerce observability stack with security, cost optimization, business context |
 | 29 | Advanced Topics Preview | Custom instrumentation, advanced sampling, security observability, emerging technologies |
-| 30 | Certification & Graduation | Professional assessment, career opportunities, community building, continued learning |
+| 30 | **Certification Study Guide & Assessment** | OTCA exam preparation, practice questions, domain review, final assessment |
 
 </details>
 

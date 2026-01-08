@@ -100,7 +100,7 @@ A trace isn't one blob of data. It's a tree of spans, where each span is one tim
 **What we learned:**
 - What a span is (operation name, start time, duration, parent relationship)
 - How spans form hierarchies (parent-child relationships)
-- What attributes are (key-value context like `http.method = "POST"`)
+- What attributes are (key-value context like `http.request.method = "POST"`)
 - What resources are (metadata about the service itself)
 - How to read a waterfall chart
 
@@ -118,7 +118,7 @@ Parent-child = how steps connect
 Attributes need standard names otherwise telemetry from different services becomes incompatible and can't be analyzed together.
 
 **What we learned:**
-- Why `http.method` instead of `request_method` or just `method`
+- Why `http.request.method` instead of `request_method` or just `method`
 - How semantic conventions make cross-service queries possible
 - The difference between infrastructure attributes (`http.*`, `db.*`) and business attributes (`payment.*`, `order.*`)
 - Why instrumentation libraries apply conventions automatically
@@ -127,12 +127,12 @@ Attributes need standard names otherwise telemetry from different services becom
 ```
 Without conventions:
   Service A: request_method = "POST"
-  Service B: http.method = "POST"
+  Service B: http.request.method = "POST"
   Service C: method = "POST"
   → Can't query across services
 
 With conventions:
-  All services: http.method = "POST"
+  All services: http.request.method = "POST"
   → One query works everywhere
 ```
 
@@ -183,9 +183,9 @@ Span (auto-created by Express instrumentation):
   name: "POST /pay"
   
   Attributes (semantic conventions applied automatically):
-    http.method = "POST"
+    http.request.method = "POST"
     http.route = "/pay"
-    http.status_code = 200
+    http.response.status_code = 200
   
   Resource (configured in our setup):
     service.name = "payment-service"
@@ -343,7 +343,7 @@ span.setAttribute('method', 'POST');           // ❌ Non-standard
 counter.add(1, { 'type': 'payment' });        // ❌ Non-standard
 
 // With semantic conventions:
-span.setAttribute('http.method', 'POST');      // ✅ Standard
+span.setAttribute('http.request.method', 'POST');      // ✅ Standard
 counter.add(1, { 'payment.method': 'cc' });   // ✅ Standard
 ```
 

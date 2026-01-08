@@ -46,16 +46,16 @@ processors:
           - set(attributes["version"], resource.attributes["service.version"])
           
           # Normalize HTTP method labels
-          - set(attributes["method"], "GET") where attributes["http.method"] == "get"
-          - set(attributes["method"], "POST") where attributes["http.method"] == "post"
-          - set(attributes["method"], "PUT") where attributes["http.method"] == "put"
-          - set(attributes["method"], "DELETE") where attributes["http.method"] == "delete"
+          - set(attributes["method"], "GET") where attributes["http.request.method"] == "get"
+          - set(attributes["method"], "POST") where attributes["http.request.method"] == "post"
+          - set(attributes["method"], "PUT") where attributes["http.request.method"] == "put"
+          - set(attributes["method"], "DELETE") where attributes["http.request.method"] == "delete"
           
           # Normalize status code ranges
-          - set(attributes["status_class"], "2xx") where Int(attributes["http.status_code"]) >= 200 and Int(attributes["http.status_code"]) < 300
-          - set(attributes["status_class"], "3xx") where Int(attributes["http.status_code"]) >= 300 and Int(attributes["http.status_code"]) < 400
-          - set(attributes["status_class"], "4xx") where Int(attributes["http.status_code"]) >= 400 and Int(attributes["http.status_code"]) < 500
-          - set(attributes["status_class"], "5xx") where Int(attributes["http.status_code"]) >= 500
+          - set(attributes["status_class"], "2xx") where Int(attributes["http.response.status_code"]) >= 200 and Int(attributes["http.response.status_code"]) < 300
+          - set(attributes["status_class"], "3xx") where Int(attributes["http.response.status_code"]) >= 300 and Int(attributes["http.response.status_code"]) < 400
+          - set(attributes["status_class"], "4xx") where Int(attributes["http.response.status_code"]) >= 400 and Int(attributes["http.response.status_code"]) < 500
+          - set(attributes["status_class"], "5xx") where Int(attributes["http.response.status_code"]) >= 500
           
           # Add business context to metrics
           - set(attributes["business_critical"], "true") where attributes["endpoint"] in ["/api/payment", "/api/checkout", "/api/order"]

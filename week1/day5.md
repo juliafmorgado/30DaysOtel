@@ -1,6 +1,6 @@
 # Day 5 – Semantic Conventions: The Shared Language of Observability
 
-Yesterday we learned that spans have attributes like `http.method = "POST"` and `db.statement = "SELECT * FROM rates"`. Today's question is: **Why those specific names? Why not `request_method` or `sql_query`?**
+Yesterday we learned that spans have attributes like `http.request.method = "POST"` and `db.statement = "SELECT * FROM rates"`. Today's question is: **Why those specific names? Why not `request_method` or `sql_query`?**
 
 The answer reveals something fundamental about how observability actually works at scale.
 
@@ -16,8 +16,8 @@ request_path: "/pay"
 
 **Config Service (Java):**
 ```
-http.method: "GET"
-http.url: "/config/rates"
+http.request.method: "GET"
+url.full: "https://api.example.com/config/rates"
 ```
 
 **User Service (Python):**
@@ -28,7 +28,7 @@ route: "/users/:id"
 
 Now try to answer: **"Show me all 500 errors across all services."**
 
-You can't. Each service uses different attribute names. Your query tool doesn't know that `request_method`, `http.method`, and `method` all mean the same thing.
+You can't. Each service uses different attribute names. Your query tool doesn't know that `request_method`, `http.request.method`, and `method` all mean the same thing.
 
 **This is the fundamental challenge of distributed systems observability:** You're not observing one application. You're observing dozens of services, written in different languages, by different teams, using different frameworks. Without a common language, your telemetry data is useless.
 
@@ -36,7 +36,7 @@ You can't. Each service uses different attribute names. Your query tool doesn't 
 
 **Semantic conventions** are OpenTelemetry's solution: a standard dictionary that says:
 
-> "When you record an HTTP request, call the method `http.method`. When you record a database query, call it `db.statement`. Everyone uses these exact names."
+> "When you record an HTTP request, call the method `http.request.method`. When you record a database query, call it `db.statement`. Everyone uses these exact names."
 
 It's not just names—it's also the format of values:
 - HTTP method is `GET`, not `get` or `Get`
@@ -79,7 +79,7 @@ Common namespaces:
 
 **Example:**
 ```
-http.method = "GET"
+http.request.method = "GET"
 http.route = "/users/:id"
 db.system = "postgresql"
 ```
@@ -123,9 +123,9 @@ OpenTelemetry's Express library creates a span:
 Span:
   name: "POST /pay"
   attributes:
-    http.method = "POST"         ← Automatic
-    http.route = "/pay"          ← Automatic
-    http.status_code = 200       ← Automatic
+    http.request.method = "POST"     ← Automatic
+    http.route = "/pay"              ← Automatic
+    http.response.status_code = 200  ← Automatic
 ```
 
 You wrote zero observability code. The library applied semantic conventions.
@@ -135,9 +135,9 @@ You wrote zero observability code. The library applied semantic conventions.
 > 
 > The Express library is calling the **OpenTelemetry Tracing API** behind the scenes:
 > ```javascript
-> span.setAttribute('http.method', 'POST');
+> span.setAttribute('http.request.method', 'POST');
 > span.setAttribute('http.route', '/pay');
-> span.setAttribute('http.status_code', 200);
+> span.setAttribute('http.response.status_code', 200);
 > ```
 > 
 > Tomorrow (Day 6) you'll learn WHO creates spans and WHEN you need to create them yourself using this same API.
@@ -149,7 +149,7 @@ This span, along with spans from all your other services, gets stored in [Dash0]
 ### Step 4: You query using standard names
 ```
 # Find slow HTTP requests across ALL services
-http.status_code = 200 AND duration > 1000ms
+http.response.status_code = 200 AND duration > 1000ms
 ```
 
 ## The hierarchy: how conventions fit into the bigger architecture
@@ -232,9 +232,9 @@ service.name = "payment-service" AND duration > 1000ms AND timestamp > 14:30
 ```
 Span: GET /config/rates (2000ms)
   Attributes:
-    http.method = "GET"
+    http.request.method = "GET"
     http.route = "/config/rates"
-    http.status_code = 200
+    http.response.status_code = 200
 ```
 
 **Step 4: Find the root cause**

@@ -19,7 +19,7 @@ processors:
   filter/health-checks:
     traces:
       span:
-        - 'name matches ".*health.*" and attributes["http.status_code"] < 400'
+        - 'name matches ".*health.*" and attributes["http.response.status_code"] < 400'
   
   # Memory protection
   memory_limiter:

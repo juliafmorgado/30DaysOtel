@@ -92,11 +92,11 @@ processors:
   attributes:
     actions:
       # Rename an attribute (delete + insert)
-      - key: http.url
+      - key: url.full
         action: delete
-      - key: http.target
+      - key: url.path
         action: insert
-        from_attribute: http.url
+        from_attribute: url.full
       
       # Update values
       - key: service.version
@@ -155,7 +155,7 @@ processors:
         - 'name == "GET /ready"'
         
         # Remove 404 errors
-        - 'attributes["http.status_code"] == 404'
+        - 'attributes["http.response.status_code"] == 404'
         
         # Remove very short spans (likely noise)
         - 'duration < 1000000'  # Less than 1ms (nanoseconds)
@@ -171,7 +171,7 @@ processors:
     traces:
       span:
         # Complex conditions
-        - 'name == "GET /api/users" and attributes["http.status_code"] >= 400' #Removes GET /api/users spans that failed (400, 404, 500 errors)
+        - 'name == "GET /api/users" and attributes["http.response.status_code"] >= 400' #Removes GET /api/users spans that failed (400, 404, 500 errors)
         - 'attributes["service.name"] == "test-service"' #Removes all spans from test-service
         
     metrics:
@@ -195,13 +195,13 @@ processors:
     traces:
       span:
         # Remove successful health checks
-        - 'name matches ".*health.*" and attributes["http.status_code"] < 400'
+        - 'name matches ".*health.*" and attributes["http.response.status_code"] < 400'
         
         # Remove internal service calls under 10ms
         - 'attributes["rpc.system"] == "grpc" and duration < 10000000'
         
         # Sample only errors for high-volume endpoints
-        - 'name == "GET /api/search" and attributes["http.status_code"] < 400 and TraceID() % 100 != 0'
+        - 'name == "GET /api/search" and attributes["http.response.status_code"] < 400 and TraceID() % 100 != 0'
 ```
 
 ---
@@ -280,7 +280,7 @@ processors:
       - context: span
         statements:
           - set(attributes["request.size"], "large") where attributes["http.request.body.size"] > 1000000 #If request body >1MB add request.size = "large"
-          - set(attributes["response.category"], "success") where attributes["http.status_code"] < 400 #If HTTP status code < 400 add response.category = "success"
+          - set(attributes["response.category"], "success") where attributes["http.response.status_code"] < 400 #If HTTP status code < 400 add response.category = "success"
 ```
 
 ---
@@ -355,7 +355,7 @@ processors:
     traces:
       span:
         - 'name matches ".*health.*"'
-        - 'attributes["http.status_code"] == 404'
+        - 'attributes["http.response.status_code"] == 404'
         - 'duration < 1000000'  # < 1ms
   
   # Business context
@@ -372,7 +372,7 @@ processors:
   filter/sampling:
     traces:
       span:
-        - 'name == "GET /api/search" and attributes["http.status_code"] < 400 and TraceID() % 10 != 0'  # Keep 10%
+        - 'name == "GET /api/search" and attributes["http.response.status_code"] < 400 and TraceID() % 10 != 0'  # Keep 10%
   
   # Efficient batching
   batch:

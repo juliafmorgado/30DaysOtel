@@ -33,7 +33,7 @@ processors:
           # Set functions - modify data
           - set(name, "user_registration") where name == "POST /api/users"
           - set(attributes["request.size"], "large") where attributes["http.request.body.size"] > 1000000
-          - set(status.code, 2) where attributes["http.status_code"] >= 500  # STATUS_CODE_ERROR
+          - set(status.code, 2) where attributes["http.response.status_code"] >= 500  # STATUS_CODE_ERROR
           
           # Delete functions - remove sensitive data
           - delete_key(attributes, "user.password")
@@ -41,7 +41,7 @@ processors:
           - delete_matching_keys(attributes, "debug.*") where resource.attributes["environment"] == "production"
           
           # String functions - text manipulation
-          - set(attributes["full_endpoint"], Concat([attributes["http.method"], " ", attributes["http.route"]], ""))
+          - set(attributes["full_endpoint"], Concat([attributes["http.request.method"], " ", attributes["http.route"]], ""))
           - set(attributes["user.domain"], Split(attributes["user.email"], "@")[1]) where attributes["user.email"] != nil
 
   # Resource-level transformations

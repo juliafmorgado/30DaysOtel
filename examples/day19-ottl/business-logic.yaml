@@ -36,11 +36,11 @@ processors:
           - set(attributes["business.action"], "customer_support") where name matches ".*support.*"
           
           # Calculate business impact based on action and status
-          - set(attributes["business.impact"], "critical") where attributes["business.action"] == "payment_processing" and attributes["http.status_code"] >= 500
-          - set(attributes["business.impact"], "high") where attributes["business.action"] == "user_management" and attributes["http.status_code"] >= 500
-          - set(attributes["business.impact"], "high") where attributes["business.action"] == "order_fulfillment" and attributes["http.status_code"] >= 500
-          - set(attributes["business.impact"], "medium") where attributes["http.status_code"] >= 400
-          - set(attributes["business.impact"], "low") where attributes["http.status_code"] < 400
+          - set(attributes["business.impact"], "critical") where attributes["business.action"] == "payment_processing" and attributes["http.response.status_code"] >= 500
+          - set(attributes["business.impact"], "high") where attributes["business.action"] == "user_management" and attributes["http.response.status_code"] >= 500
+          - set(attributes["business.impact"], "high") where attributes["business.action"] == "order_fulfillment" and attributes["http.response.status_code"] >= 500
+          - set(attributes["business.impact"], "medium") where attributes["http.response.status_code"] >= 400
+          - set(attributes["business.impact"], "low") where attributes["http.response.status_code"] < 400
           
           # Add SLA targets based on business action
           - set(attributes["sla.target"], 99.9) where attributes["business.action"] == "payment_processing"
