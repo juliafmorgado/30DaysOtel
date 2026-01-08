@@ -1,8 +1,13 @@
 # Day 22 – Debugging the Collector: When Your Observability Tool Needs Observing
 
-Welcome to Week 4! This week we focus on production patterns and real-world challenges. Today we learn how to debug Collector issues when they inevitably arise in production.
+Welcome to Week 4! This week we focus on troubleshooting, production readiness, and real-world challenges. Today we learn how to debug Collector issues when they inevitably arise in production.
 
-> **The irony:** Our observability system can become unobservable. Today we fix that.
+> [!NOTE]
+> Don’t worry if the next few days feel confusing. We’ll be doing a lot of debugging, and it’s totally normal to mix up the what and the when at first. Everything will click together later. 
+>
+>On Day 29, we’ll do a full recap and clear things up. 
+>
+>Hang in there, it’s part of the process!
 
 ---
 
@@ -29,7 +34,7 @@ The Collector seems simple -> receive data, process it, export it. But data can 
 
 ## The Collector's Built-in Observability
 
-The Collector practices what it preaches, it generates telemetry about itself. Let's learn to use it.
+The Collector practices what it preaches, it generates telemetry about itself.
 
 ### Health Check Endpoint
 
@@ -58,8 +63,8 @@ service:
       level: detailed         # More detailed metrics
 ```
 
-# Check exporter metrics
 ```
+#Check exporter metrics
 curl http://localhost:8888/metrics | grep otelcol_exporter
 ```
 
@@ -230,11 +235,11 @@ docker logs collector-container 2>&1 | grep -i "connection\|timeout\|refused"
 
 ---
 
-## Tomorrow: Debugging Distributed Traces
+## Tomorrow: Troubleshooting Missing Telemetry
 
-**We have the foundation now that our Collector is observable. Next is making distributed system observable too.**
+**We have the foundation now that our Collector is observable. Next is making sure data actually flows through the pipeline.**
 
-Today you learned to debug the Collector itself. Tomorrow on day 23, we'll tackle an even trickier challenge: debugging distributed traces when spans go missing or context gets lost across service boundaries.
+Today you learned to debug the Collector itself. Tomorrow on day 23, we'll tackle the most common frustration: "Where the heck is my data?" - systematically troubleshooting when telemetry data goes missing anywhere in the pipeline from application to backend.
 
 ---
 

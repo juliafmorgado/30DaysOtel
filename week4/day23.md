@@ -1,161 +1,305 @@
-# Day 23 – Debugging Distributed Traces: Finding Lost Spans
+# Day 23 – Where the Heck is My Data? Troubleshooting Missing Telemetry
 
-Yesterday we learned to debug the OpenTelemetry Collector. 
+You've configured your OpenTelemetry setup. You've added instrumentation. You've set up the collector. But when you check your observability backend... **nothing**. No traces, no metrics, no logs.
 
-That's helpful because now we can tell if spans are arriving at all, see which services are sending data and rule out the infrastructure before blaming the app.
+**Today's question is:** When telemetry data goes missing, how do you systematically debug the pipeline to find where it's getting lost?
 
-Today we'll go one step further and look into how to **debug distributed traces** themselves.
+This is one of the most common frustrations when getting started with OpenTelemetry. The good news: there's a methodical approach to finding and fixing these issues.
 
-But remember, always debug the Collector first. Then debug context between services.
----
+## The telemetry pipeline: where data can disappear
 
-## The Distributed Tracing Challenge
+Understanding where data can get lost helps you debug systematically:
 
-In a distributed system, one user request doesn’t stay in one service. Consider this e-commerce checkout flow:
 ```
-Frontend → API Gateway → User Service → Payment Service → Inventory Service
+Application → SDK → Collector → Backend
+     ↓         ↓        ↓         ↓
+   [Issue 1] [Issue 2] [Issue 3] [Issue 4]
 ```
-One request should create one trace, with spans from each service.
 
-But in real life, you often see:
-- **Missing spans** - Some services don't appear in traces
-- **Broken context** - Spans exist but aren't connected
-- **Orphaned spans** - Spans with no parent relationship
-- **Incomplete traces** - Traces that end abruptly
+**Issue 1:** Application not generating data  
+**Issue 2:** SDK not exporting data  
+**Issue 3:** Collector not receiving/processing data  
+**Issue 4:** Backend not receiving/storing data  
 
-> [!IMPORTANT]
-> DON'T CONFUSE THE REQUEST FAILING AND THE TRACE FAILING!
->
-> Read the next section and you'll understand it better
+Let's debug each step systematically.
 
-## The Common Confusion: “Did the request break or did tracing break?”
+## Step 1: Is your application generating telemetry?
 
-When people first learn distributed tracing, they often mix up two very different failures: the request and the trace. They feel similar because both show up as “missing spans”. But the request is the work and the trace is the metadata describing that work (it travels with the request).
+### Check if instrumentation is loaded
 
-### Case 1: The Request Breaks
-When a service never receives the request or it crashes before doing any work, you don't see any spans from that service and/or the trace ends early.
+**Problem:** Instrumentation not loaded or configured incorrectly.
 
-This DOESN'T mean it's a tracing problem, it's usually a **network, timeout, or application error**.
+**Debug commands:**
+```bash
+# Enable OpenTelemetry debug logging
+export OTEL_LOG_LEVEL=debug
 
-Example: API calls Payment -> Payment crashes -> No Payment span exists because no work happened
+# For Node.js, also enable instrumentation debugging
+export OTEL_INSTRUMENTATION_DEBUG=true
 
-👉 Nothing to trace because nothing ran
+# Run your application
+node app.js
+```
 
-### Case 2: The Request Works, but Context Breaks
-Here the request reaches the service, the service runs normally, a span is created BUT the trace context isn't passed or extracted. So the service shows up BUT in a **different trace** or as an orphan span.
+**What to look for:**
+```
+Good: @opentelemetry/instrumentation-http Applying instrumentation patch for module http
+Good: @opentelemetry/instrumentation-express Applying instrumentation patch for module express
 
-This means the app and the request are fine but the **tracing is broken**.
+Bad: No instrumentation messages
+Bad: "Module not found" errors
+```
 
-Example: API calls Payment -> Payment runs successfully -> But forgets to forward traceparent -> Payment creates a brand new trace
+### Verify spans are being created
 
-👉 Work happened, but the story was lost
+**Add temporary logging to see raw spans:**
 
-> If the service ran, but the trace is disconnected, context broke.
->
-> If the service never ran, the request broke.
->
-> Your job is to figure out whether the work stopped… or the story stopped.
+```javascript
+// In your instrumentation setup
+const { SimpleSpanProcessor, ConsoleSpanExporter } = require('@opentelemetry/sdk-trace-base');
 
-## Why This Matters in Practice
-Because the fixes are totally different:
+// Add console exporter temporarily for debugging
+sdk.addSpanProcessor(new SimpleSpanProcessor(new ConsoleSpanExporter()));
+```
 
-| Problem | Fix |
-|---------|-----|
-| Request broke | Fix networking, retries, timeouts |
-| Context broke | Fix propagation, headers, instrumentation |
-| Missing spans | Check if service ran at all |
-| Orphan spans | Check trace context |
+**Make a test request and check console output:**
+```bash
+curl http://localhost:3000/api/test
+```
 
+**Expected output:**
+```json
+{
+  "traceId": "a1b2c3d4e5f6...",
+  "spanId": "1a2b3c4d...",
+  "name": "GET /api/test",
+  "attributes": {
+    "http.request.method": "GET",
+    "http.route": "/api/test"
+  }
+}
+```
+
+## Step 2: Is your SDK exporting data?
+
+### Check SDK configuration
+
+**Common issues:**
+- Wrong exporter endpoint
+- Missing authentication
+- Network connectivity problems
+- Sampling configuration dropping all data
+
+**Debug the exporter:**
+```javascript
+// Add debug logging to your SDK setup
+const { OTLPTraceExporter } = require('@opentelemetry/exporter-trace-otlp-http');
+
+const exporter = new OTLPTraceExporter({
+  url: 'http://localhost:4318/v1/traces',
+  // Add debug headers
+  headers: {
+    'debug': 'true'
+  }
+});
+
+// Test exporter connectivity
+console.log('Exporter endpoint:', exporter.url);
+```
+
+### Verify network connectivity
+
+**Test if collector is reachable:**
+```bash
+# Test HTTP connectivity to collector
+curl -v http://localhost:4318/v1/traces \
+  -H "Content-Type: application/json" \
+  -d '{"test": "connectivity"}'
+
+# Should return 200 or 400 (not connection refused)
+```
+
+### Check sampling configuration
+
+**Problem:** Sampler dropping all traces.
+
+```javascript
+// Temporarily use AlwaysOn sampler for debugging
+const { AlwaysOnSampler } = require('@opentelemetry/sdk-trace-base');
+
+const sdk = new NodeSDK({
+  sampler: new AlwaysOnSampler(), // Debug: capture everything
+  // ... rest of config
+});
+```
+
+## Step 3: Is your collector receiving data?
+
+### Enable collector debug logging
+
+**Update collector config:**
+```yaml
+service:
+  telemetry:
+    logs:
+      level: debug
+      
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+      grpc:
+        endpoint: 0.0.0.0:4317
+
+processors:
+  # Add debug processor to see data flow
+  debug:
+    verbosity: detailed
+
+exporters:
+  # Keep your existing exporters
+  logging:
+    loglevel: debug
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [debug]  # Add debug processor
+      exporters: [logging]  # Add logging exporter temporarily
+```
+
+### Check collector logs
+
+**Start collector and watch logs:**
+```bash
+./otelcol --config=config.yaml
+
+# Look for these messages:
+✅ "Trace received" - Data is reaching collector
+✅ "Exporting traces" - Data is being sent to backend
+❌ "Connection refused" - Backend unreachable
+❌ "Authentication failed" - Credentials issue
+```
+
+### Test collector directly
+
+**Send test data to collector:**
+```bash
+curl -X POST http://localhost:4318/v1/traces \
+  -H "Content-Type: application/json" \
+  -d '{
+    "resourceSpans": [{
+      "resource": {
+        "attributes": [{
+          "key": "service.name",
+          "value": {"stringValue": "test-service"}
+        }]
+      },
+      "scopeSpans": [{
+        "spans": [{
+          "traceId": "12345678901234567890123456789012",
+          "spanId": "1234567890123456",
+          "name": "test-span",
+          "startTimeUnixNano": "1640995200000000000",
+          "endTimeUnixNano": "1640995201000000000"
+        }]
+      }]
+    }]
+  }'
+```
+
+## Step 4: Is your backend receiving data?
+
+### Check backend connectivity
+
+**Test backend endpoint:**
+```bash
+# For Jaeger
+curl http://localhost:16686/api/traces?service=test-service
+
+# For Zipkin  
+curl http://localhost:9411/api/v2/traces
+
+# For vendor backends, check their health endpoints
+```
+
+### Verify authentication
+
+**Common auth issues:**
+```yaml
+exporters:
+  otlp:
+    endpoint: https://api.vendor.com:443
+    headers:
+      authorization: "Bearer ${API_KEY}"  # Check env var is set
+      
+  jaeger:
+    endpoint: http://jaeger:14250
+    tls:
+      insecure: true  # For local development only
+```
+
+### Check backend logs
+
+**Look for ingestion errors in your backend logs:**
+- Authentication failures
+- Rate limiting
+- Data format issues
+- Storage problems
+
+## Common troubleshooting scenarios
+
+### Scenario 1: "I see spans in console but not in Jaeger"
+**Likely cause:** Collector or exporter configuration issue.
+**Quick fix:** Add logging exporter to collector config and check logs for export errors.
+
+### Scenario 2: "Auto-instrumentation not working"
+**Likely cause:** Instrumentation not loaded or library not supported.
+**Quick fix:** Enable `OTEL_LOG_LEVEL=debug` and verify instrumentation loads before application code.
+
+### Scenario 3: "Data appears intermittently"
+**Likely cause:** Sampling, batching, or resource limits.
+**Quick fix:** Set sampler to `AlwaysOnSampler` temporarily and check batch processor configuration.
+
+### Scenario 4: "High cardinality attributes causing issues"
+**Likely cause:** Too many unique attribute values overwhelming the system.
+**Quick fix:** Check for attributes with user IDs, timestamps, or UUIDs and use processors to filter them.
+
+## Prevention: monitoring your monitoring
+
+**Set up health checks for your telemetry pipeline:**
+
+```yaml
+# Collector health check
+receivers:
+  prometheus:
+    config:
+      scrape_configs:
+        - job_name: 'otel-collector'
+          static_configs:
+            - targets: ['localhost:8888']
+
+# Monitor key metrics:
+# - otelcol_receiver_accepted_spans
+# - otelcol_exporter_sent_spans  
+# - otelcol_processor_dropped_spans
+```
+
+
+## What I'm taking into Day 24
+
+**Missing telemetry data is usually a configuration or connectivity issue, not a code problem. Debug systematically through each stage of the pipeline: application → SDK → collector → backend.**
+
+The debugging approach:
+1. **Verify each stage independently** using debug logging and test data
+2. **Use temporary debug exporters** to see data flow
+3. **Test connectivity** at each network boundary
+4. **Monitor the monitoring** to catch issues early
+
+Tomorrow we'll learn about **debugging distributed traces** to find lost spans and broken context propagation across service boundaries.
 
 ---
 
-## The One Rule of Distributed Tracing
-
-As we learned on [day 12](../week2/day12.md) about context propagation, **distributed tracing only works if context is passed between services**.
-
-The trace context (trace ID + parent info) is passed using request headers.
-If those headers don’t make it across a service boundary, the trace breaks.
----
-
-## What “Breaking” Actually Means
-
-When context doesn’t flow correctly, you’ll see one of three things:
-
-### 1. Missing spans (Service Not Appearing)
-Service is running and processing requests, but never shows up in the trace and other services in the flow still work fine.
-
-**Key questions to ask:**
-- Is the service instrumented with OpenTelemetry?
-- Is it sending telemetry to the right Collector endpoint?
-- Can the service reach the Collector?
-
-That usually means the service isn’t instrumented or it isn’t sending data anywhere (because the Collector endpoint is wrong, there are network connectivity issues or a service name mismatch).
-
-
-### 2. Broken Context Propagation
-All services create spans, but each one starts a new trace with different trace IDs. There is no parent-child relationships.
-
-That means services are instrumented correctly but trace context isn't flowing between them. Each service starts a new trace instead of continuing the existing one.
-
-**Key questions to ask:**
-- Are HTTP headers being passed between services?
-- Is the SDK configured to extract context from incoming requests?
-- Is the SDK configured to inject context into outgoing requests?
-- Are the right propagators configured (W3C Trace Context)?
-
-That usually means context headers weren’t extracted or weren’t forwarded to the next service.
-
-### 3. Incomplete traces
-The trace starts fine, some spans appear but then it suddenly stops (missing downstream spans).
- 
-This is likely a **request problem**, not a tracing problem. The downstream service never received the request or it crashed before creating any spans.
-
-**Key questions to ask:**
-- Is the missing service actually running and healthy?
-- Is it receiving HTTP requests from upstream services?
-- Are there any errors in the service logs?
-- Can services reach each other over the network?
-- Is sampling set too low (accidentally dropping spans)?
-
-**Common causes:**
-- Service crashed or isn't running
-- Network connectivity problems between services
-- Load balancer or service mesh routing issues
-- Aggressive sampling configuration
-- Service timeouts or circuit breakers
-
----
-## Where Tracing Breaks Most Often
-Almost all distributed tracing issues happen at service boundaries:
-- HTTP calls between services
-- Message queues
-- Async jobs
-- Background workers
-
-If context isn’t forwarded there, tracing stops.
-
----
-## A Simple Debugging Checklist
-
-When a trace looks wrong, check in order:
-1. Does every service create spans? If not, instrumentation is missing.
-2. Do spans share the same trace ID? If not, context isn’t propagating.
-3. Does the trace break at a specific service hop? That’s where headers are getting lost.
-
-That’s enough to find most issues.
-
----
-## Why This Feels Hard at First
-Tracing feels magical when it works and confusing when it doesn’t.
-
-Once you understand that headers carry the trace, everything becomes easier to reason about.
-
----
-
-## Tomorrow: Handling Production Issues
-
-Today we learned to debug distributed traces systematically. Tomorrow we'll tackle broader production challenges like handling backpressure, dealing with dropped spans, and managing errors at scale.
-
-**You can now debug the invisible connections between your services. Next, we'll make sure those connections stay reliable under pressure.**
-
-See you on Day 24!
+**Debug tip:** Always keep a "debug configuration" ready that includes console exporters, debug logging, and AlwaysOn sampling. This lets you quickly isolate issues without modifying production configs.
