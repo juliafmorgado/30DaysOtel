@@ -1,5 +1,9 @@
 # Business Context Processors
 # Demonstrates adding business logic and context to telemetry data
+#
+# NOTE: This example uses batch processor for educational purposes.
+# OpenTelemetry is moving batching to exporters for better reliability.
+# See: https://github.com/open-telemetry/opentelemetry-collector/issues/8122
 
 receivers:
   otlp:
@@ -88,7 +92,7 @@ processors:
           - set(attributes["business.impact"], "medium") where attributes["business.critical"] == "true" and attributes["http.response.status_code"] >= 400
           - set(attributes["business.impact"], "low") where attributes["business.critical"] != "true"
   
-  # Batch processing
+  # Batch processing (educational - use exporter batching instead)
   batch:
     timeout: 1s
     send_batch_size: 1024

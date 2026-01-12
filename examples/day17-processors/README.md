@@ -2,6 +2,8 @@
 
 This directory contains example configurations for different OpenTelemetry Collector processors.
 
+> **Important Note**: These examples include batch processor configurations for educational purposes. However, OpenTelemetry is moving batching functionality to exporters for better reliability ([GitHub issue #8122](https://github.com/open-telemetry/opentelemetry-collector/issues/8122), [#13582](https://github.com/open-telemetry/opentelemetry-collector/issues/13582)). In production, prefer exporters with built-in batching and persistent storage.
+
 ## Files
 
 - `basic-processors.yaml` - Essential processors every deployment needs
@@ -36,7 +38,7 @@ Receivers → Processors → Exporters
 ```
 
 This demonstrates:
-- Batch processor for efficient export
+- Batch processor for efficient export (not being recommended anymore)
 - Attributes processor for adding context
 - Filter processor for removing noise
 

@@ -1,5 +1,9 @@
 # Basic Processors Configuration
 # Demonstrates essential processors every deployment needs
+#
+# NOTE: This example uses batch processor for educational purposes.
+# OpenTelemetry is moving batching to exporters for better reliability.
+# See: https://github.com/open-telemetry/opentelemetry-collector/issues/8122
 
 receivers:
   otlp:
@@ -10,7 +14,7 @@ receivers:
         endpoint: 0.0.0.0:4318
 
 processors:
-  # 1. Batch processor (essential for production)
+  # 1. Batch processor (educational -> being replaced by exporter-side batching)
   batch:
     timeout: 1s
     send_batch_size: 1024

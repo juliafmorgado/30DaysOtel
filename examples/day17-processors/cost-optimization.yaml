@@ -1,5 +1,9 @@
 # Cost Optimization Processors
 # Demonstrates filtering and sampling to reduce observability costs
+#
+# NOTE: This example uses batch processor for educational purposes.
+# OpenTelemetry is moving batching to exporters for better reliability.
+# See: https://github.com/open-telemetry/opentelemetry-collector/issues/8122
 
 receivers:
   otlp:
@@ -54,7 +58,7 @@ processors:
           match_type: strict
           services: ["payment-service", "user-service"]
   
-  # Efficient batching for cost reduction
+  # Efficient batching for cost reduction (educational - use exporter batching instead)
   batch/cost-optimized:
     timeout: 2s  # Longer timeout = fewer network calls
     send_batch_size: 2048  # Larger batches = more efficient
