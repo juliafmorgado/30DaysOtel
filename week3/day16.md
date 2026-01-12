@@ -208,17 +208,17 @@ service:
   pipelines:
     traces:
       receivers: [otlp]  # Only OTLP for traces
-      processors: [batch]
+      processors: []
       exporters: [jaeger]
     
     metrics:
       receivers: [otlp, prometheus, hostmetrics]  # Multiple sources
-      processors: [batch]
+      processors: []
       exporters: [prometheus]
     
     logs:
       receivers: [otlp, filelog]  # OTLP + file logs
-      processors: [batch]
+      processors: []
       exporters: [loki]
 ```
 
