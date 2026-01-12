@@ -79,7 +79,7 @@ app.post('/login', (req, res) => {
 
 ## Performance: Don't Slow Down Your App
 
-### The Problem: Too Much Observability Can Hurt Performance
+### The Problem: Collecting Too Much Telemetry Can Hurt Performance
 
 When you're excited about tracing, it's tempting to trace everything:
 
