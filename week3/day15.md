@@ -83,7 +83,7 @@ Receivers → Processors → Exporters
 
 ### Example data flow:
 1. **Receiver** gets telemetry from your Node.js app
-2. **Processor** adds environment labels and batches data
+2. **Processor** adds environment labels and optimizes data for export
 3. **Exporter** sends traces to Jaeger and metrics to Prometheus, or everything to Dash0
 
 ---
@@ -162,14 +162,8 @@ Processors are the **middle** of the pipeline. They can modify, filter, enhance,
 
 ### Common processor types explained:
 
-**Batch Processor** (the "efficiency expert"):
-```yaml
-processors:
-  batch:
-    timeout: 1s # Send batch after 1 second
-    send_batch_size: 1024 # Or when we have 1024 spans
-```
-Collects individual spans/metrics/logs and groups them into batches before sending. Without batching, a high-traffic application might make thousands of network calls per second, which is inefficient and can overwhelm backends.
+**Batch Processor**:
+This used to be widely recommended as the standard approach, but recently, that [started to change](https://github.com/open-telemetry/opentelemetry-collector/issues/13582). OpenTelemetry is moving batching logic into [exporters](https://github.com/open-telemetry/opentelemetry-collector/issues/8122) for better reliability, since modern exporters can handle batching internally using persistent storage. We’ll dive deeper into this on [Day 17](./day17.md).
 
 **Attributes Processor** (the labeler):
 ```yaml
@@ -244,24 +238,24 @@ Prints telemetry data to the Collector's console/logs (great for debugging).
 
 Pipelines define how receivers, processors, and exporters work together. Each pipeline handles one telemetry type, so they can have completely different processing logic.
 
-> We separate each pipeline because they have different processing needs (traces might need complex filtering, while metrics just need batching), and destinations; they have different scaling needs and it helps isolating problems (if traces pipeline has issues, your metrics and logs keep flowing).
+> We separate each pipeline because they have different processing needs (traces might need complex filtering, while metrics need different optimizations), and destinations; they have different scaling needs and it helps isolating problems (if traces pipeline has issues, your metrics and logs keep flowing).
 
 ```yaml
 service:
   pipelines:
     traces:                    # This pipeline handles trace data
       receivers: [otlp]        # Get traces from OTLP receiver
-      processors: [batch]      # Process them with batch processor
+      processors: []           # Modern exporters handle batching internally
       exporters: [jaeger]      # Send them to Jaeger
     
     metrics:                   # This pipeline handles metric data
       receivers: [otlp, prometheus]  # Get metrics from two sources
-      processors: [batch, attributes] # Apply two processors in order
+      processors: [attributes] # Apply attributes
       exporters: [prometheus]  # Send them to Prometheus
     
     logs:                      # This pipeline handles log data
       receivers: [otlp, filelog] # Get logs from OTLP and files
-      processors: [batch]      # Just batch them
+      processors: []           # Keep it simple for logs
       exporters: [logging]     # Print them to console
 ```
 
@@ -287,9 +281,6 @@ receivers: # How data gets in
         endpoint: 0.0.0.0:4317 # Your apps send to this port
 
 processors: # How data gets transformed
-  batch: # Batch data for efficiency
-    timeout: 1s
-  
   attributes: # Add environment labels to all data
     actions:
       - key: environment
@@ -317,12 +308,12 @@ service: # Orchestrating everything
   pipelines: # Data processing pipelines
     traces: # Trace pipeline: Filter noise, add labels, send to multiple destinations
       receivers: [otlp]
-      processors: [filter, attributes, batch] # Order matters!
+      processors: [filter, attributes] # Order matters!
       exporters: [jaeger, otlp/dash0]
     
     metrics: # Metrics pipeline: Simple processing, multiple destinations
       receivers: [otlp]
-      processors: [attributes, batch]
+      processors: [attributes]
       exporters: [prometheus, otlp/dash0]
 ```
 
