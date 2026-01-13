@@ -4,7 +4,6 @@ Today we **build a simple but complete observability stack** that demonstrates e
 
 > [!NOTE] Configuration examples in this lesson use batch processor for educational purposes. In production, consider exporters with built-in batching and persistent storage for better reliability ([OpenTelemetry issue #8122](https://github.com/open-telemetry/opentelemetry-collector/issues/8122)).
 
-> **Production-Ready Code Available:** This lesson provides working code for learning the concepts. For a more comprehensive, production-ready implementation with advanced patterns, error handling, and detailed documentation, see [`examples/day28-final-project/`](../examples/day28-final-project/) folder.
 ---
 
 ## Project Overview: Simple E-Commerce API
