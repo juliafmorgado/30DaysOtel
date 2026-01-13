@@ -184,3 +184,6 @@ After mastering debugging, Week 4 shifted to **proactive production patterns**: 
 
 Tomorrow we'll discover what comes next in our observability evolution, the advanced patterns and emerging technologies waiting beyond these fundamentals.
 
+> Ready to test your Week 4 knowledge? Take the [Week 4 Knowledge Check](week4-knowledge-check.md) to see how much you've mastered.
+
+> Looking to earn your OpenTelemetry certification? Practice with [OTCA exam prep](./otca-exam-prep.md) to prepare for the official exam.
