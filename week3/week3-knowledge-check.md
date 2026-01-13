@@ -73,7 +73,7 @@ You notice your observability bill is increasing quickly.
 
 You have two options:
 1. Sample data in every application SDK
-2. Filter and batch data in the Collector
+2. Filter and optimize data in the Collector
 
 Why is option 2 usually preferred?
 
