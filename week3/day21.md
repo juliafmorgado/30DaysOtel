@@ -40,9 +40,9 @@ Raw telemetry is like a block of marble, processors are our tools to sculpt it i
 **The analogy:** We're Michelangelo haha, but instead of David, we're creating business insights from raw spans.
 
 ### Day 18: We Became a Traffic Controller
-Modern observability isn't about one destination, it's about intelligent routing. Now we can design observability architectures that grow with our organization: for different teams, different needs, and different budgets.
+Modern observability isn't about one destination, it's about intelligent routing. We also learned that modern exporters handle batching internally with persistent storage, making our architectures more reliable. Now we can design observability systems that grow with our organization: for different teams, different needs, and different budgets.
 
-**The analogy:** We went from being a taxi driver (one passenger, one destination) to an air traffic controller (managing multiple flights to multiple airports).
+**The analogy:** We went from being a taxi driver (one passenger, one destination) to an air traffic controller (managing multiple flights to multiple airports safely).
 
 ### Day 19: We Learned to Speak Business
 OTTL isn't just about data transformation, it's about making telemetry speak our organization's language. Now we can make observability relevant to non-technical stakeholders. That's career-changing stuff.
@@ -66,7 +66,7 @@ There's no "one size fits all" in observability deployment. We learned to match 
 ### The "Configuration Explosion" Mistake
 **What people do:** Create massive, complex configurations that nobody can maintain.
 
-**What you know:** Start simple, add complexity only when needed. Your basic patterns (batch → export) work for 80% of use cases.
+**What you know:** Start simple, add complexity only when needed. Your basic patterns (modern exporters with built-in reliability) work for 80% of use cases.
 
 ### The "Premature Optimization" Mistake
 **What people do:** Spend weeks optimizing OTTL transformations before understanding their actual data.
@@ -111,7 +111,7 @@ You: "Yes, we just need to add an exporter to the Collector..."
 You: "Let me show you what we can do with OTTL transformations..."
 
 **"Our Collector keeps crashing under load."**  
-You: "Let's check our resource limits and batching configuration..."
+You: "Let's check our resource limits and exporter queue configuration..."
 
 ---
 
