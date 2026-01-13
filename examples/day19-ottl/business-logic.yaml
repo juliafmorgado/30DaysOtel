@@ -1,5 +1,9 @@
 # Business Logic Transformations
 # 
+# NOTE: This example uses batch processor for educational purposes.
+# OpenTelemetry is moving batching to exporters for better reliability.
+# See: https://github.com/open-telemetry/opentelemetry-collector/issues/8122
+# 
 # Problem: Technical span names like "POST /api/users" don't tell you the business impact
 # Solution: Add business context, impact levels, SLA targets, and alerting priorities
 #
@@ -61,7 +65,7 @@ processors:
           - set(attributes["cost.center"], "customer_success") where attributes["business.action"] == "customer_support"
           - set(attributes["cost.center"], "engineering") where attributes["business.action"] == "user_management"
 
-  batch:
+  batch:  # Educational - use exporter batching instead
     timeout: 1s
     send_batch_size: 1024
 

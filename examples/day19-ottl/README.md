@@ -2,6 +2,8 @@
 
 This directory contains example configurations for OpenTelemetry Transformation Language (OTTL) transformations.
 
+> **Important Note**: These examples use batch processor for educational purposes. OpenTelemetry is moving batching functionality to exporters for better reliability ([GitHub issue #8122](https://github.com/open-telemetry/opentelemetry-collector/issues/8122)). In production, prefer exporters with built-in batching and persistent storage.
+
 ## Files
 
 - `basic-transformations.yaml` - Basic OTTL functions and patterns

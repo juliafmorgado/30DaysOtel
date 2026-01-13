@@ -113,7 +113,7 @@ processors:
           - delete_matching_keys(attributes, "http.request.header.x-credit-card.*")
           - delete_matching_keys(attributes, "http.request.header.x-payment.*")
 
-  batch:
+  batch:  # Educational - use exporter batching instead
     timeout: 1s
     send_batch_size: 1024
 

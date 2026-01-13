@@ -85,7 +85,7 @@ processors:
           - set(attributes["cluster"], "staging") where attributes["deployment.environment"] == "staging"
           - set(attributes["cluster"], "development") where attributes["deployment.environment"] == "dev"
 
-  batch:
+  batch:  # Educational - use exporter batching instead
     timeout: 1s
     send_batch_size: 1024
 

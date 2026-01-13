@@ -1,5 +1,9 @@
 # Basic OTTL Transformations Example
 #
+# NOTE: This example uses batch processor for educational purposes.
+# OpenTelemetry is moving batching to exporters for better reliability.
+# See: https://github.com/open-telemetry/opentelemetry-collector/issues/8122
+#
 # Problem: Need to learn the fundamental OTTL functions before complex use cases
 # Solution: Simple examples of the most common OTTL operations you'll use daily
 #
@@ -32,16 +36,16 @@ processors:
         statements:
           # Set functions - modify data
           - set(name, "user_registration") where name == "POST /api/users"
-          - set(attributes["request.size"], "large") where attributes["http.request.body.size"] > 1000000
+          - set(attributes["http.request.size_category"], "large") where attributes["http.request.body.size"] > 1000000
           - set(status.code, 2) where attributes["http.response.status_code"] >= 500  # STATUS_CODE_ERROR
           
           # Delete functions - remove sensitive data
           - delete_key(attributes, "user.password")
           - delete_key(attributes, "credit_card.number")
-          - delete_matching_keys(attributes, "debug.*") where resource.attributes["environment"] == "production"
+          - delete_matching_keys(attributes, "debug.*") where resource.attributes["deployment.environment"] == "production"
           
           # String functions - text manipulation
-          - set(attributes["full_endpoint"], Concat([attributes["http.request.method"], " ", attributes["http.route"]], ""))
+          - set(attributes["http.endpoint"], Concat([attributes["http.request.method"], " ", attributes["http.route"]], ""))
           - set(attributes["user.domain"], Split(attributes["user.email"], "@")[1]) where attributes["user.email"] != nil
 
   # Resource-level transformations
@@ -54,7 +58,7 @@ processors:
           # Add deployment info
           - set(attributes["deployment.environment"], "production") where attributes["deployment.environment"] == nil
 
-  batch:
+  batch:  # Educational - use exporter batching instead
     timeout: 1s
     send_batch_size: 1024
 

@@ -113,7 +113,7 @@ processors:
     sampling_initial: 10
     sampling_thereafter: 100
 
-  # Batch processor
+  # Batch processor (Educational - use exporter batching instead)
   batch:
     timeout: 1s
     send_batch_size: 512

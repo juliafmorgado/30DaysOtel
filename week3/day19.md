@@ -83,10 +83,10 @@ OTTL can work on different parts of our telemetry data. Think of contexts as "wh
 - set(name, "user_registration") where name == "POST /api/users"
 
 # Add business categories
-- set(attributes["business_area"], "payments") where name matches ".*payment.*"
+- set(attributes["business.area"], "payments") where name matches ".*payment.*"
 
-# Add performance labels
-- set(attributes["speed"], "slow") where duration > 1000000000  # > 1 second
+# Add performance labels  
+- set(attributes["performance.category"], "slow") where duration > 1000000000  # > 1 second
 ```
 
 > **See full examples:** [`basic-transformations.yaml`](../examples/day19-ottl/basic-transformations.yaml)
@@ -115,7 +115,7 @@ OTTL can work on different parts of our telemetry data. Think of contexts as "wh
 **Concat()** - Combine text:
 ```yaml
 # Create descriptive endpoint names
-- set(attributes["endpoint"], Concat([attributes["http.request.method"], " ", attributes["http.route"]], ""))
+- set(attributes["http.endpoint"], Concat([attributes["http.request.method"], " ", attributes["http.route"]], ""))
 ```
 
 **Split()** - Break apart text:
@@ -174,6 +174,25 @@ OTTL can handle various data types and operations:
 - Find text: `where name matches ".*login.*"` (contains "login")
 - Pattern matching: `where route matches "/api/v1/.*"` (starts with /api/v1/)
 
+### Following Semantic Conventions
+
+When adding custom attributes, follow OpenTelemetry semantic conventions:
+
+**Good practices:**
+- Use namespaced attributes: `business.area`, `performance.category`
+- Follow existing patterns: `user.domain`, `debug.info`
+- Use standard HTTP attributes: `http.request.method`, `http.response.status_code`
+
+**Examples:**
+```yaml
+# Good: Properly namespaced custom attributes
+- set(attributes["business.priority"], "high") where name matches ".*payment.*"
+- set(attributes["performance.tier"], "premium") where duration < 100000000
+
+# Good: Standard semantic convention attributes
+- set(attributes["http.request.method"], "POST") where name == "user_registration"
+```
+
 ---
 
 ## OTTL for Metrics and Logs
@@ -226,10 +245,10 @@ statements:
 **3. Start simple** and add complexity gradually:
 ```yaml
 # Test basic condition first
-- set(attributes["test"], "found") where name == "POST /api/users"
+- set(attributes["debug.test"], "found") where name == "POST /api/users"
 
 # Then add more conditions
-- set(attributes["test"], "found") where name == "POST /api/users" and attributes["http.response.status_code"] >= 400
+- set(attributes["debug.test"], "found") where name == "POST /api/users" and attributes["http.response.status_code"] >= 400
 ```
 
 > **Complete debugging setup:** [`debug-config.yaml`](../examples/day19-ottl/debug-config.yaml)
@@ -248,7 +267,7 @@ statements:
 **Use other processors when you need to:**
 - **Attributes processor** - Simple add/delete/update of attributes
 - **Resource processor** - Modify resource attributes only
-- **Batch processor** - Group telemetry for performance
+- **Batching** - Modern exporters handle this internally for reliability
 - **Filter processor** - Drop entire spans/metrics/logs
 
 **OTTL is more powerful but also more complex.** Start with simpler processors and move to OTTL when you need the extra flexibility.

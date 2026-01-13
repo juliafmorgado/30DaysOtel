@@ -86,7 +86,7 @@ processors:
           - set(attributes["deployment.environment"], "staging") where attributes["deployment.environment"] == "stage"
 
   # Batch processor for performance
-  batch:
+  batch:  # Educational - use exporter batching instead
     timeout: 1s
     send_batch_size: 1024
 

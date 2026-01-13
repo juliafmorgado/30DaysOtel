@@ -1,5 +1,9 @@
 # Performance Classification
 #
+# NOTE: This example uses batch processor for educational purposes.
+# OpenTelemetry is moving batching to exporters for better reliability.
+# See: https://github.com/open-telemetry/opentelemetry-collector/issues/8122
+#
 # Problem: Raw duration numbers (like 1500000000 nanoseconds) are hard to interpret
 # Solution: Categorize performance into human-friendly labels and add SLA monitoring
 #
@@ -77,7 +81,7 @@ processors:
           - set(attributes["sla.budget_impact"], 5) where attributes["sla.violation"] == "true" and attributes["business.action"] == "user_management"
           - set(attributes["sla.budget_impact"], 2) where attributes["sla.violation"] == "true" and attributes["business.action"] == "order_fulfillment"
 
-  batch:
+  batch:  # Educational - use exporter batching instead
     timeout: 1s
     send_batch_size: 1024
 
