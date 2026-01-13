@@ -63,14 +63,14 @@ service:
       level: detailed         # More detailed metrics
 ```
 
-```
-#Check exporter metrics
+```bash
+# Check exporter metrics (modern approach focuses on exporter queues)
 curl http://localhost:8888/metrics | grep otelcol_exporter
 ```
 
 **What to look for:**
 - `otelcol_receiver_accepted_spans` - **Are spans coming in?** (If zero, problem is before Collector)
-- `otelcol_processor_batch_batch_send_size` - **Are batches being created?** (Shows processing is working)
+- `otelcol_exporter_queue_size` - **Are spans queued for export?** (Shows data is being processed)
 - `otelcol_exporter_sent_spans` - **Are spans going out?** (If zero but received > 0, export problem)
 - `otelcol_exporter_send_failed_spans` - **Are exports failing?** (Network, auth, or backend issues)
 
@@ -99,7 +99,7 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [batch]
+      processors: [attributes]  # Modern approach - no batch processor needed
       exporters: [logging, jaeger]  # Add logging alongside real exporter
 ```
 
@@ -191,6 +191,9 @@ curl -s http://localhost:8888/metrics | grep "otelcol_exporter_sent_spans"
 
 # Are exports failing?
 curl -s http://localhost:8888/metrics | grep "otelcol_exporter_send_failed_spans"
+
+# Check exporter queue health (modern exporters)
+curl -s http://localhost:8888/metrics | grep "otelcol_exporter_queue_size"
 ```
 
 ### Step 5: Check Collector Logs
