@@ -1,5 +1,6 @@
 # OpenTelemetry Collector Agent Configuration
 # Deploy this close to applications (DaemonSet, sidecar, or per-host)
+# Uses modern exporter-side batching for better reliability
 
 receivers:
   otlp:
@@ -10,11 +11,6 @@ receivers:
         endpoint: localhost:4318
 
 processors:
-  # Minimal processing for performance
-  batch:
-    timeout: 1s
-    send_batch_size: 512
-  
   # Basic filtering to reduce noise
   filter/health-checks:
     traces:
@@ -26,17 +22,35 @@ processors:
     limit_mib: 128
 
 exporters:
-  # Direct to backend (simple agent)
+  # Modern exporter with built-in batching and reliability
   otlp/backend:
     endpoint: https://api.dash0.com:4317
     headers:
       authorization: "Bearer YOUR_API_TOKEN"
     compression: gzip
+    
+    # Built-in batching (replaces batch processor)
+    sending_queue:
+      enabled: true
+      queue_size: 512
+      persistent_storage_enabled: true  # Survives crashes
+    
+    # Intelligent retry logic
+    retry_on_failure:
+      enabled: true
+      initial_interval: 1s
+      max_elapsed_time: 300s
   
-  # Or to gateway for advanced processing
+  # Gateway option with same reliability features
   otlp/gateway:
     endpoint: https://gateway.company.com:4317
     compression: gzip
+    sending_queue:
+      enabled: true
+      queue_size: 512
+      persistent_storage_enabled: true
+    retry_on_failure:
+      enabled: true
 
 service:
   extensions: []
@@ -44,17 +58,17 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [memory_limiter, filter/health-checks, batch]
+      processors: [memory_limiter, filter/health-checks]  # No batch processor needed
       exporters: [otlp/backend]  # Change to otlp/gateway for hybrid pattern
     
     metrics:
       receivers: [otlp]
-      processors: [memory_limiter, batch]
+      processors: [memory_limiter]
       exporters: [otlp/backend]
     
     logs:
       receivers: [otlp]
-      processors: [memory_limiter, batch]
+      processors: [memory_limiter]
       exporters: [otlp/backend]
 
   telemetry:

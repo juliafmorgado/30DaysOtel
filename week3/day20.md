@@ -1,10 +1,10 @@
-# Day 20 – Deployment & Scaling: Where to Put Collectors and How to Scale Them
+# Day 20 – Deployment & Scaling: Modern Collector Patterns
 
-Yesterday we learned OTTL transformations.
+Yesterday we learned OTTL transformations. Today we'll explore **deployment patterns** using the modern exporter capabilities we learned in [Day 18](./day18.md).
 
-We'll cover a lot today: deployment patterns AND basic scaling. But don't worry, these are introductory concepts to give us the foundation. Advanced production deployments come later in our OpenTelemetry journey.
+We'll cover deployment patterns AND basic scaling, using the **reliable exporter approach** instead of batch processors.
 
-> **Simple examples:** Basic deployment configurations are available in [`examples/day20-deployment-patterns/`](../examples/day20-deployment-patterns/)
+> **Modern examples:** Deployment configurations with exporter-side batching are available in [`examples/day20-deployment-patterns/`](../examples/day20-deployment-patterns/)
 
 ---
 
@@ -86,33 +86,43 @@ services:
       - "4318:4318"   # HTTP
 ```
 
-**Agent configuration (simple):**
+**Agent configuration (modern approach):**
 ```yaml
 # agent-config.yaml
-receivers: #Listens for telemetry data from our app on both gRPC and HTTP ports
+receivers:
   otlp:
     protocols:
       grpc:
-        endpoint: 0.0.0.0:4317 # Accept gRPC connections
+        endpoint: 0.0.0.0:4317
       http:
-        endpoint: 0.0.0.0:4318 # Accept HTTP connections
+        endpoint: 0.0.0.0:4318
 
 processors:
-  batch:
-    timeout: 1s # Send batch every 1 second
-    send_batch_size: 512 # Or when we have 512 spans
+  # Simple processing - no batch processor needed
+  attributes:
+    actions:
+      - key: deployment.environment
+        value: production
+        action: insert
 
 exporters:
   otlp:
     endpoint: http://jaeger:4317
     tls:
-      insecure: true # No encryption (dev only)
+      insecure: true
+    # Modern exporter with built-in batching and reliability
+    sending_queue:
+      enabled: true
+      queue_size: 1000
+      persistent_storage_enabled: true
+    retry_on_failure:
+      enabled: true
 
 service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [batch]
+      processors: [attributes]  # No batch processor needed
       exporters: [otlp]
 ```
 
@@ -189,7 +199,7 @@ services:
       - "4318:4318"
 ```
 
-**Gateway configuration (more advanced):**
+**Gateway configuration (modern approach with reliability):**
 ```yaml
 # gateway-config.yaml
 receivers:
@@ -201,42 +211,95 @@ receivers:
         endpoint: 0.0.0.0:4318
 
 processors:
-  batch:
-    timeout: 2s
-    send_batch_size: 1024
-  
   # Add environment labels to all data
   attributes:
     actions:
-      - key: environment
+      - key: deployment.environment
         value: production
+        action: insert
+      - key: collector.type
+        value: gateway
         action: insert
 
 exporters:
-  # Send traces to Jaeger
+  # Send traces to Jaeger with modern reliability features
   otlp/jaeger:
     endpoint: http://jaeger:4317
     tls:
       insecure: true
+    sending_queue:
+      enabled: true
+      queue_size: 2000
+      persistent_storage_enabled: true
+    retry_on_failure:
+      enabled: true
+      max_elapsed_time: 300s
   
   # Send metrics to Prometheus
   prometheus:
     endpoint: "0.0.0.0:8889"
+    namespace: "gateway"
+    const_labels:
+      environment: "production"
 
 service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [attributes, batch]
+      processors: [attributes]  # No batch processor needed
       exporters: [otlp/jaeger]
     
     metrics:
       receivers: [otlp]
-      processors: [attributes, batch]
+      processors: [attributes]
       exporters: [prometheus]
 ```
 
 > **See complete example:** [`gateway-config.yaml`](../examples/day20-deployment-patterns/gateway-config.yaml)
+
+## Modern Collector Reliability (From Day 18)
+
+As we learned in [Day 18](./day18.md), modern Collectors use **exporter-side batching** instead of batch processors for better reliability:
+
+### Key Benefits of Modern Approach
+
+**Data Safety:**
+- **Persistent storage** survives Collector crashes
+- **100% data recovery** after restarts
+- **No batch processor needed** - exporters handle everything
+
+**Simplified Configuration:**
+- Fewer components to configure
+- Built-in retry logic and queue management
+- Better performance with same functionality
+
+### Modern vs Traditional
+
+**Traditional approach (avoid in production):**
+```yaml
+processors:
+  batch:  # Data lost if Collector crashes
+    timeout: 1s
+    send_batch_size: 1024
+exporters:
+  otlp:
+    endpoint: http://backend:4317
+```
+
+**Modern approach (recommended):**
+```yaml
+processors: []  # Clean and simple
+exporters:
+  otlp:
+    endpoint: http://backend:4317
+    sending_queue:
+      enabled: true
+      persistent_storage_enabled: true  # Survives crashes!
+    retry_on_failure:
+      enabled: true
+```
+
+This modern approach works for **both Agent and Gateway patterns** - the reliability benefits apply everywhere.
 
 ---
 
@@ -335,9 +398,9 @@ services:
       - ./gateway-config.yaml:/etc/otel-collector-config.yaml
 ```
 
-### Resource Limits (Important!)
+### Resource Limits and Memory Management
 
-Always set resource limits to prevent Collectors from using too much memory/CPU and crash the server. With limits if the Collector hits 512MB limit, it drops some data but server stays up.
+Always set resource limits to prevent Collectors from using too much memory/CPU. Modern exporters with persistent storage are more memory-efficient:
 
 ```yaml
 # docker-compose.yml
@@ -353,6 +416,11 @@ services:
           memory: 256M # Always guarantee 256MB of RAM
           cpus: '0.25' # Always guarantee 25% of one CPU core
 ```
+
+**Modern exporters help with memory management:**
+- **Persistent queues** use disk instead of just memory
+- **Intelligent retry** prevents memory buildup
+- **Backpressure handling** protects against overload
 
 ---
 

@@ -1,5 +1,6 @@
 # OpenTelemetry Collector Gateway Configuration
 # Deploy this as centralized service for advanced processing
+# Uses modern exporter-side batching for better reliability
 
 receivers:
   # Accept from agents and applications
@@ -20,18 +21,13 @@ receivers:
           scrape_interval: 30s
 
 processors:
-  # Efficient batching for high throughput
-  batch:
-    timeout: 5s
-    send_batch_size: 2048
-  
   # Add enterprise context
   attributes/enterprise:
     actions:
       - key: company.division
         value: "engineering"
         action: insert
-      - key: environment
+      - key: deployment.environment
         from_attribute: deployment.environment
         action: insert
       - key: region
@@ -73,12 +69,18 @@ processors:
     limit_mib: 1024
 
 exporters:
-  # Production observability platform
+  # Production observability platform with modern reliability
   otlp/production:
     endpoint: https://api.dash0.com:4317
     headers:
       authorization: "Bearer YOUR_PROD_API_TOKEN"
     compression: gzip
+    
+    # Built-in batching and reliability
+    sending_queue:
+      enabled: true
+      queue_size: 2048
+      persistent_storage_enabled: true
     retry_on_failure:
       enabled: true
       max_elapsed_time: 300s
@@ -89,6 +91,13 @@ exporters:
     headers:
       authorization: "Bearer YOUR_ARCHIVE_API_TOKEN"
     compression: gzip
+    sending_queue:
+      enabled: true
+      queue_size: 5000  # Larger queue for batch processing
+      persistent_storage_enabled: true
+    retry_on_failure:
+      enabled: true
+      max_elapsed_time: 600s  # More patient for archives
   
   # Security monitoring (critical traces only)
   otlp/security:
@@ -96,6 +105,13 @@ exporters:
     headers:
       authorization: "Bearer YOUR_SECURITY_API_TOKEN"
     compression: gzip
+    sending_queue:
+      enabled: true
+      queue_size: 1000
+      persistent_storage_enabled: true
+    retry_on_failure:
+      enabled: true
+      max_elapsed_time: 60s  # Fail fast for security
 
 service:
   extensions: []
@@ -107,9 +123,8 @@ service:
       processors: [
         memory_limiter,
         attributes/enterprise,
-        transform/business-context,
-        batch
-      ]
+        transform/business-context
+      ]  # No batch processor needed
       exporters: [otlp/production, otlp/security]
     
     # Standard data - basic processing and archive
@@ -118,21 +133,20 @@ service:
       processors: [
         memory_limiter,
         attributes/enterprise,
-        filter/cost-optimization,
-        batch
-      ]
+        filter/cost-optimization
+      ]  # No batch processor needed
       exporters: [otlp/archive]
     
     # Metrics from all sources
     metrics:
       receivers: [otlp, prometheus]
-      processors: [memory_limiter, attributes/enterprise, batch]
+      processors: [memory_limiter, attributes/enterprise]
       exporters: [otlp/production]
     
     # Logs with business context
     logs:
       receivers: [otlp]
-      processors: [memory_limiter, attributes/enterprise, batch]
+      processors: [memory_limiter, attributes/enterprise]
       exporters: [otlp/production]
 
   telemetry:

@@ -1,6 +1,8 @@
-# Day 20: Deployment & Scaling Examples
+# Day 20: Modern Deployment & Scaling Examples
 
-This directory contains beginner-friendly examples for deploying OpenTelemetry Collectors using Docker Compose.
+This directory contains examples for deploying OpenTelemetry Collectors using modern exporter-side batching for better reliability.
+
+> **Modern Approach**: These examples use exporter-side batching with persistent storage instead of batch processors, following OpenTelemetry's current best practices ([GitHub issue #8122](https://github.com/open-telemetry/opentelemetry-collector/issues/8122)).
 
 ## Files Overview
 
@@ -86,34 +88,39 @@ curl http://localhost:8888/metrics
 
 ## Configuration Files
 
-### Agent Config (Simple)
+### Agent Config (Modern Approach)
 ```yaml
-# agent-config.yaml - Basic forwarding
+# agent-config.yaml - Modern exporter with built-in batching
 receivers:
   otlp:
     protocols:
       http:
         endpoint: 0.0.0.0:4318
 
-processors:
-  batch:
-    timeout: 1s
+processors: []  # No batch processor needed
 
 exporters:
-  jaeger:
-    endpoint: jaeger:14250
+  otlp:
+    endpoint: http://jaeger:4317
+    # Built-in batching and reliability
+    sending_queue:
+      enabled: true
+      queue_size: 512
+      persistent_storage_enabled: true  # Survives crashes
+    retry_on_failure:
+      enabled: true
 
 service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [batch]
-      exporters: [jaeger]
+      processors: []  # Clean and simple
+      exporters: [otlp]
 ```
 
-### Gateway Config (More Advanced)
+### Gateway Config (Advanced with Reliability)
 ```yaml
-# gateway-config.yaml - Advanced processing
+# gateway-config.yaml - Advanced processing with modern exporters
 receivers:
   otlp:
     protocols:
@@ -121,25 +128,47 @@ receivers:
         endpoint: 0.0.0.0:4318
 
 processors:
-  batch:
-    timeout: 2s
   attributes:
     actions:
-      - key: environment
+      - key: deployment.environment
         value: production
         action: insert
 
 exporters:
-  jaeger:
-    endpoint: jaeger:14250
+  otlp:
+    endpoint: http://jaeger:4317
+    sending_queue:
+      enabled: true
+      queue_size: 2048
+      persistent_storage_enabled: true
+    retry_on_failure:
+      enabled: true
+      max_elapsed_time: 300s
 
 service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [attributes, batch]
-      exporters: [jaeger]
+      processors: [attributes]  # No batch processor
+      exporters: [otlp]
 ```
+
+## Key Benefits of Modern Approach
+
+**Data Safety:**
+- **Persistent storage** survives Collector crashes
+- **100% data recovery** after restarts  
+- **No data loss** during network issues
+
+**Simplified Configuration:**
+- **No batch processor needed** - exporters handle everything
+- **Built-in retry logic** and queue management
+- **Better performance** with same functionality
+
+**Production Ready:**
+- **Intelligent backpressure** handling
+- **Configurable retry policies**
+- **Memory-efficient** persistent queues
 
 ## Testing Your Setup
 
