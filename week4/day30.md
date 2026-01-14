@@ -42,7 +42,7 @@ Would you be interested? Let me know what advanced areas excite you most.
 
 > Ready to test your Week 4 knowledge? Take the [Week 4 Knowledge Check](week4-knowledge-check.md) to see how much you've mastered.
 
-> Looking to earn your OpenTelemetry certification? Practice with [OTCA exam prep](./otca-exam-prep.md) to prepare for the official exam.
+> Ready to validate your OpenTelemetry knowledge? Check the [OTCA exam prep](./otca-exam-prep.md) to prepare for the official exam.
 
 ---
 

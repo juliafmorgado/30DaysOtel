@@ -414,7 +414,40 @@ If you scored well, you understand:
 **Performance optimization** techniques for high-load systems  
 **Business context integration** for meaningful observability
 
-**Next step:** Take the OTCA certification exam to validate your complete OpenTelemetry expertise!
+---
+
+## Ready for Certification?
+
+**Week 4 covered critical production skills that appear on the OTCA exam:**
+- Systematic debugging (Days 22-24) → Exam Domain 4: Troubleshooting
+- Production patterns (Days 25-27) → Exam Domain 4: Deployment & Operations
+- Complete integration (Day 28) → Practical application across all domains
+
+### **Quick Certification Tips**
+
+**1. Focus on the Big Domains**
+- Domain 2 (OpenTelemetry Fundamentals): 28% - Know API/SDK inside out
+- Domain 3 (Using OpenTelemetry): 28% - Master Collector configuration
+- Domain 4 (Ecosystem): 26% - Understand deployment patterns
+- Domain 1 (Observability Fundamentals): 18% - Solid conceptual foundation
+
+**2. Week 4 Exam Topics**
+- **Debugging approaches:** Systematic troubleshooting from infrastructure → pipeline → application
+- **Context propagation:** How trace context flows and where it breaks
+- **Production patterns:** Backpressure, graceful degradation, security
+- **Deployment strategies:** Agent vs Gateway, Kubernetes Operator
+
+**3. Common Exam Traps**
+- **Exact terminology:** "Sampler" not "sampling strategy", "propagator" not "context carrier"
+- **Component responsibilities:** Know what receivers, processors, and exporters do
+- **Configuration order:** Memory limiter first, batch last in processor pipelines
+- **Deployment patterns:** When to use agent vs gateway (practical scenarios)
+
+### **Next Step: Comprehensive OTCA Prep**
+
+Ready to go deeper? Check out the **[OTCA Exam Prep Guide](./otca-exam-prep.md)**.
+
+**Your 30-day journey has prepared you well. The OTCA exam validates what you already know!**
 
 ---
 
@@ -424,10 +457,10 @@ If you scored well, you understand:
 
 1. **Set up a debugging scenario** - Intentionally break different parts of your observability pipeline and practice the systematic debugging approach
 
-2. **Implement backpressure handling** - Configure batch processors, memory limits, and sampling to handle traffic spikes
+2. **Implement backpressure handling** - Configure queue management, memory limits, and adaptive sampling to handle traffic spikes
 
-3. **Add security layers** - Implement TLS, authentication, and PII redaction in your setup
+3. **Add security layers** - Practice not capturing sensitive data, implement TLS, and configure authentication
 
-4. **Deploy with Operator** - Use the OpenTelemetry Operator to deploy and manage your observability stack
+4. **Deploy with Operator** - Use the OpenTelemetry Operator to deploy and manage your observability stack in Kubernetes
 
 5. **Create business dashboards** - Build dashboards that show business metrics derived from your technical telemetry
