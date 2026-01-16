@@ -84,7 +84,7 @@ I’ll be sharing updates, notes, and learnings here:
 - **Instagram:** https://www.instagram.com/juliafmorgado  
 - **TikTok:** https://www.tiktok.com/@juliafmorgado  
 
-You can also find all my code, notes, and resources in this GitHub repo: [github.com/juliafmorgado/30-days-of-opentelemetry](https://github.com/juliafmorgado/30-days-of-opentelemetry)
+You can also find all my code, notes, and resources in this GitHub repo: [https://github.com/juliafmorgado/30DaysOtel](https://github.com/juliafmorgado/30DaysOtel)
 
 **Day 1 complete. 29 days to go.**
 
