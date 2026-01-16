@@ -10,6 +10,19 @@ This is a **public learning project** designed to help others follow along and b
 
 ---
 
+## Quickstart
+
+1. Start with the first lesson: `week1/day1.md`
+2. Explore the examples: `examples/`
+3. Run a Node.js example (pick any `examples/day*/`):
+   ```bash
+   npm install
+   node app.js
+   ```
+4. Follow the day’s instructions for any required backends (Jaeger/Prometheus/Loki).
+
+---
+
 ## Weekly Structure
 
 | Week   | Theme | Focus | What We'll Build |
