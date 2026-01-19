@@ -2,7 +2,7 @@
 
 Yesterday we built a complete (but simple) observability stack. Today we'll recap everything we've learned in Week 4, from systematic debugging to production-ready deployments.
 
-During this week we went from someone who can build observability systems to someone who can **troubleshoot, secure, and scale them in production**.
+During this week we went from someone who could build observability systems to someone who can **troubleshoot, secure, and scale them in production**.
 
 Week 4 took us through three distinct phases:
 
@@ -43,6 +43,8 @@ The first three days of Week 4 focused on systematic troubleshooting when things
 
 **Problem:** "I configured everything but see no data anywhere"  
 **Scope:** Entire telemetry pipeline from application to backend
+
+Unlike Day 22, where the Collector itself may be misconfigured or unhealthy, Day 23 assumes the Collector runs but asks whether data is actually moving through every hop.
 
 **What we're debugging:**
 - Is the application generating telemetry at all?
@@ -86,6 +88,11 @@ The first three days of Week 4 focused on systematic troubleshooting when things
 ---
 
 ## The Debugging Progression Makes Sense
+
+>The Golden Rule of Debugging
+> Never debug application code until you’ve proven the Collector works.
+> Never debug the backend until you’ve proven data leaves the app.
+> Never debug trace structure until you’ve proven spans exist.
 
 **Day 22:** Fix the infrastructure (Collector) first  
 **Day 23:** Then ensure data flows through the entire pipeline  
@@ -132,8 +139,8 @@ After mastering debugging, Week 4 shifted to **proactive production patterns**: 
 **What we learned:**
 - Handling backpressure when traffic spikes
 - Resource management and capacity planning
-- Graceful degradation patterns
-- Circuit breakers and retry logic
+- Graceful degradation via intentional limits (sampling, queues, memory guards)
+- Retry logic, queue-based buffering, and controlled data shedding
 
 **The shift:** From "How do I fix this?" to "How do I prevent this?"
 
@@ -168,6 +175,8 @@ After mastering debugging, Week 4 shifted to **proactive production patterns**: 
 **Custom spans and metrics** for business operations  
 **Simple, working architecture** (API → Collector → Dash0)
 
+The goal wasn’t complexity, it was clarity: a system simple enough to reason about under failure.
+
 ---
 
 ## The Mindset Shifts We've Made
@@ -177,6 +186,14 @@ After mastering debugging, Week 4 shifted to **proactive production patterns**: 
 - **Week 2:** We learned to create observability data  
 - **Week 3:** We learned to process and route observability data
 - **Week 4:** We learned to **troubleshoot, secure, and scale** observability systems
+
+---
+
+> If You Remember Nothing Else from Week 4
+> Always localize failures before guessing causes
+> Observability systems must survive incidents, not collapse during them
+> Missing data is a signal, not just a problem
+> Production readiness is about limits, not maximums
 
 ---
 
