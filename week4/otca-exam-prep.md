@@ -2,11 +2,11 @@
 
 **Thinking about taking the OTCA exam?** 
 
-This guide covers all exam domains, includes practice questions, and shares tips to help you feel confident going into the [OpenTelemetry Certified Associate (OTCA)](https://training.linuxfoundation.org/certification/opentelemetry-certified-associate-otca/) exam.
+This guide focuses on what you need to know for the exam and how concepts are tested.
 
-> Check the [Quick Reference Sheet](./otca-quick-reference.md) to help refresh the concepts before the exam!
-
-> Try the [Mock Exam](./otca-mock-exam.md) to see how ready you are!
+> **Quick Links:**
+> - [Quick Reference Sheet](./otca-quick-reference.md): Core definitions and concepts
+> - [Mock Exam](./otca-mock-exam.md): 60 questions to test your readiness
 
 **Exam Overview:**
 - **Duration:** 90 minutes
@@ -31,218 +31,199 @@ The OTCA exam covers 4 main domains:
 | **Maintaining and Debugging Observability Pipelines** | 10% | Week 4 |
 
 ---
+
 ## Domain 1: Fundamentals of Observability (18%)
 
-### **Key Concepts for Exam**
+### **What the Exam Loves to Ask**
 
-**Telemetry Data:**
-- **Traces:** Request flow through distributed systems
-- **Metrics:** Aggregated measurements over time
-- **Logs:** Discrete events with context
-- Correlation of signals for complete observability
+**Signal Characteristics:**
+- When to use traces vs metrics vs logs
+- How signals correlate (trace_id in logs, exemplars in metrics)
+- Trade-offs between signal types
+- Metric types: Counter vs UpDownCounter vs Histogram vs Gauge 
 
 **Semantic Conventions:**
-- Standardized attribute names and values
-- Resource attributes (service.name, deployment.environment)
-- Span attributes (http.request.method, db.system)
-- Metric naming conventions
+- Difference between resource attributes and span attributes
+- Common attribute names (http.request.method, not http.method)
+- Why semantic conventions matter for interoperability
 
-**Instrumentation:**
-- Auto-instrumentation vs manual instrumentation
-- When to use each approach
+**Trace Context:**
+- W3C Trace Context standard (traceparent, tracestate headers)
+- How trace context propagates across service boundaries
+- Difference between trace context and baggage
+
+**Instrumentation Approaches:**
+- Auto-instrumentation vs manual: when to use each
+- Coverage limitations of auto-instrumentation
 - Performance impact considerations
-- Coverage and completeness
 
-**Analysis and Outcomes:**
-- Observability vs monitoring (unknown unknowns vs known unknowns)
-- Exploratory analysis and correlation
-- Troubleshooting distributed systems
-- Performance optimization insights
+**Observability vs Monitoring:**
+- Known unknowns (monitoring) vs unknown unknowns (observability)
+- Exploratory analysis capabilities
+- Correlation across services
 
 ---
 
 ## Domain 2: The OpenTelemetry API and SDK (46%)
 
-### **Key Concepts for Exam**
+### **What the Exam Loves to Ask**
 
-**Data Model:**
-- **Resource:** Describes the entity producing telemetry
-- **Instrumentation Scope:** Identifies the instrumentation library
-- **Attributes:** Key-value pairs for context
-- **Events:** Time-stamped occurrences within spans
-- **Links:** Relationships between spans
+**Resource vs Span Attributes:**
+- Resource: entity producing telemetry (service, host, container)
+- Span attributes: request-specific data
+- When to use each
 
-**Composability and Extension:**
-- **API/SDK Separation:** APIs define interfaces, SDKs provide implementations
-- **Vendor Neutrality:** Same instrumentation works with any backend
-- **Plugin Architecture:** Custom components and extensions
-- **Language-specific implementations**
+**Sampler Types:**
+- Head-based (SDK, at span creation) vs tail-based (Collector, after trace completion)
+- ParentBased behavior: children inherit parent's sampling decision
 
-**Configuration:**
-- Environment variables (OTEL_*)
-- Configuration files
-- Programmatic configuration
-- Resource detection and configuration
+**Context Propagation vs Correlation:**
+- Propagation: moving trace context between services (headers)
+- Correlation: linking telemetry signals together (trace_id in logs, exemplars in metrics)
+- Completely different responsibilities
 
-**Signals (Tracing, Metric, Log):**
-- **Tracing API:** Creating spans, adding attributes, events, status
-- **Metrics API:** Counters, gauges, histograms, up-down counters
-- **Logs API:** Structured logging with trace correlation
-- Signal-specific best practices
+**Processor vs Exporter Responsibilities:**
+- Processors: transform/filter data in the pipeline
+- Exporters: send data to backends
+- Span processors: Simple (sync, blocking) vs Batch (async, queued)
 
-**SDK Pipelines:**
-- **Span Processors:** Simple, batch, and custom processors
-- **Metric Readers:** Push vs pull models
-- **Log Record Processors:** Batching and filtering
-- **Samplers:** Always on/off, probabilistic, parent-based, trace ID ratio
+**SDK Configuration Priority:**
+- Environment variables (lowest priority)
+- Resource detectors
+- Programmatic configuration (highest priority)
 
-**Context Propagation:**
-- **In-process:** Thread-local or async context
-- **Cross-process:** HTTP headers (W3C Trace Context), message metadata
-- **Baggage:** User-defined cross-cutting concerns
-- Propagators and context carriers
-
-**Agents:**
-- Zero-code instrumentation
-- Language-specific agents (Java, .NET, Python, Node.js)
-- Configuration and customization
-- Trade-offs vs manual instrumentation
+**Context Mechanisms:**
+- In-process: thread-local/async-local storage
+- Cross-process: HTTP headers (traceparent, tracestate)
+- Baggage: cross-cutting concerns (low-cardinality only!)
 
 ---
 
 ## Domain 3: The OpenTelemetry Collector (26%)
 
-### **Key Concepts for Exam**
+### **What the Exam Loves to Ask**
 
-**Configuration:**
-- YAML configuration structure
-- Receivers, processors, exporters, extensions
-- Service pipelines (traces, metrics, logs)
-- Environment variable substitution
+**Pipeline Architecture:**
+- Order: Receivers → Processors → Exporters
+- Each signal type (traces, metrics, logs) has its own pipeline
+- Connectors bridge pipelines (e.g., spanmetrics: traces → metrics)
 
-**Deployment:**
-- **Agent Pattern:** Collector on each node, local processing
-- **Gateway Pattern:** Centralized collectors, cross-cluster routing
-- **Hybrid:** Agents for local processing, gateways for aggregation
-- Kubernetes deployment (DaemonSet, Deployment, StatefulSet)
+**Deployment Patterns:**
+- Agent: on each node, local processing, host metrics
+- Gateway: centralized, policy enforcement, reduced backend fanout
+- Hybrid: agents + gateway for best of both
 
-**Scaling:**
-- **Horizontal Scaling:** Multiple collector instances with load balancing
-- **Vertical Scaling:** Increasing resources per collector instance
-- Load balancing strategies
-- Resource limits and requests
+**Processor Ordering:**
+- Memory limiter should be first (protect against OOM)
+- Batch should be last (before export)
+- Transforms/filters in the middle
 
-**Pipelines:**
-- **Receivers:** How data enters (OTLP, Prometheus, Filelog, Jaeger)
-- **Processors:** How data is modified (batch, attributes, filter, resource)
-- **Exporters:** How data exits (OTLP, Prometheus, Jaeger, Logging)
-- Pipeline ordering and data flow
+**Batch Processor:**
+- Even though the Batch processor is not being recommended, it's still widely used and might appear on the exam. There are discussions about promoting exporter-side batching/queueing patterns, but no deprecation timeline exists yet.
+- Batching improves throughput but increases latency
+- Configure: max_batch_size, timeout
 
-> Since the processor batching capability hasn't been deprecated yet it might be on the Exam (as of Jan 2026)
+**OTTL Transformations:**
+- Syntax: `set(attributes["key"], "value")`
+- Common functions: set, delete, truncate_all, replace_pattern
+- Context: span, resource, scope, metric, datapoint, log
 
-**Transforming Data:**
-- **OTTL (OpenTelemetry Transformation Language):** Syntax and functions
-- Attribute manipulation (set, delete, upsert)
-- Resource and scope transformations
-- Filtering and routing based on conditions
-- Performance considerations
+**Scaling Considerations:**
+- Horizontal: multiple instances + load balancer
+- Vertical: increase CPU/memory per instance
+- Queue sizing and backpressure handling
 
 ---
 
 ## Domain 4: Maintaining and Debugging Observability Pipelines (10%)
 
-### **Key Concepts for Exam**
+### **What the Exam Loves to Ask**
 
-**Context Propagation:**
-- Verifying trace context across service boundaries
-- Troubleshooting broken traces and missing spans
-- Baggage propagation issues
-- Missing or incorrect propagation headers (traceparent, tracestate)
-- Testing context propagation in distributed systems
+**Context Propagation Debugging:**
+- Check for traceparent header in HTTP requests
+- Verify frameworks extract/inject context
+- Look for fragmented traces (many single-span traces = broken propagation)
 
-**Debugging Pipelines:**
-- Using logging exporter for visibility
-- Collector metrics and health checks (port 8888)
-- Trace sampling and data loss investigation
-- Performance bottlenecks identification
-- Configuration validation and testing
-- zpages extension for debugging (port 55679)
-- Analyzing dropped data and export failures
+**Pipeline Debugging:**
+- Logging exporter: see what's being processed
+- Collector metrics (port 8888): otelcol_processor_dropped_spans, etc.
+- zpages extension (port 55679): live pipeline inspection
+
+**Common Issues:**
+- Spans dropped: check queue sizes, memory limits, exporter performance
+- Missing spans: check sampling, instrumentation coverage
+- High latency: check batch timeout, exporter speed
+- High cardinality: check metric attributes
 
 **Error Handling:**
-- Retry mechanisms and backpressure handling
-- Graceful degradation strategies
-- Queue management (sending_queue configuration)
-- Circuit breakers and timeout settings
-- Monitoring collector health and status
-- Handling export failures and network issues
-- Resource limits and memory management
-
-**Schema Management:**
-- Schema evolution and versioning
-- Backward compatibility considerations
-- Semantic convention updates and migrations
-- Migration strategies for breaking changes
-- Schema transformation in pipelines
-- Handling multiple schema versions simultaneously
+- sending_queue: buffer during backend outages
+- retry_on_failure: handle transient failures
+- Memory limiter: prevent OOM
 
 ---
 
-## Content Tips
+## Hands-On Lab Ladder
 
-**Review Your 30-Day Journey**
+Practice these labs in order to build practical skills:
 
-**High-Probability Topics:**
-- Semantic conventions and standardization
-- Context propagation mechanisms
-- Collector architecture (receivers, processors, exporters)
+**Lab 1: Basic Pipeline**
+- App → Collector → Logging exporter
+- Verify telemetry flows through
+
+**Lab 2: Add Reliability**
+- Add batch processor
+- Add memory_limiter processor
+- Observe behavior under load
+
+**Lab 3: Add Resilience**
+- Configure sending_queue in exporter
+- Configure retry_on_failure
+- Test with backend outage
+
+**Lab 4: Add Transformation**
+- Add transform processor with OTTL
+- Modify attributes, filter data
+- Verify transformations work
+
+**Lab 5: Add Metrics from Traces**
+- Add spanmetrics connector
+- Generate request count and latency metrics from spans
+- Export to separate metrics backend
+
+---
+
+## High-Probability Topics
+
+**Expect Multiple Questions On:**
+- Semantic conventions and attribute naming
+- Context propagation mechanisms and debugging
+- Collector pipeline architecture and ordering
 - Deployment patterns (agent vs gateway)
 - Sampling strategies and trade-offs
-- Security considerations (TLS, PII redaction)
-- Performance optimization (batching, resource limits)
+- SDK configuration priority (env vars vs programmatic)
+- Metric types and when to use each
+- Batch processor behavior and configuration
+- Error handling and retry mechanisms
 
-**Tricky Areas:**
-- Differences between metric types (counter vs gauge vs histogram)
-- When to use different sampling strategies
-- Collector processor ordering and pipeline configuration
-- Kubernetes Operator vs manual deployment
-- Debugging approaches for different types of issues
+---
 
-## Practice Resources
+## Question Strategies
 
-### Hands-On Labs
-Set up these environments for practice:
-1. **Basic instrumentation** in your preferred language
-2. **Collector pipeline** with multiple processors
-3. **Multi-backend export** configuration
-4. **OTTL transformations** for data processing
-5. **Debugging scenario** with logging exporter
+**During the Exam:**
+1. **Read carefully** - Look for key words like "most likely", "best practice", "first step"
+2. **Eliminate wrong answers** - Often 2 answers are obviously wrong
+3. **Think practically** - What would you do in production?
+4. **Watch for traps** - Review the "Top 10 Gotchas" on the [OTCA quick reference sheet](./otca-quick-reference.md)
+5. **Don't overthink** - Your first instinct is usually correct
+6. **Manage time** - 90 minutes for 60 questions = 1.5 minutes per question
 
-### Configuration Practice
-Write configurations for:
-- Agent deployment pattern
-- Gateway deployment pattern
-- Multi-tenant routing
-- Cost optimization with sampling
-- Error handling and retry logic
+**Common Question Patterns:**
+- "What's the most likely cause?" → Think about common misconfigurations
+- "What's the best practice?" → Think about production reliability
+- "What happens when...?" → Think about the data flow
+- "Which component is responsible?" → Know the architecture clearly
 
-
-## Success Tips
-
-### Technical Preparation
-1. **Understand concepts, don't memorize**
-2. **Practice writing configurations**
-3. **Set up real environments**
-4. **Debug common issues**
-5. **Know the defaults and conventions**
-
-**Question Strategies:**
-- Read questions carefully - look for key words
-- Eliminate obviously wrong answers first
-- For scenario questions, think about the practical implementation
-- When unsure, go with your first instinct
-- Don't spend too long on any question
-
+---
 
 ## Post-Exam
 
@@ -254,11 +235,13 @@ Write configurations for:
 5. **Help others prepare for their exams**
 
 ### If You Don't Pass
-1. **Don't be discouraged**, many people need multiple attempts
+1. **Don't be discouraged** - Many people need multiple attempts
 2. **Review your weak areas** from the exam feedback
 3. **Study those topics more deeply**
 4. **Take another practice exam**
-5. **Schedule your retake when ready (you're allowed one free retake)**
+5. **Schedule your retake when ready** (you have one free retake)
+
+---
 
 ## Good Luck!
 
