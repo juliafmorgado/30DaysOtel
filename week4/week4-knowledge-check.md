@@ -10,27 +10,30 @@
 
 ---
 
-## Section 1: The Debugging Trilogy (Days 22-24)
-
 ### Question 1: Debugging Approach
-You're troubleshooting missing traces in production. What's the correct debugging order?
+You're troubleshooting missing traces in production. Which debugging approach best narrows the fault domain?
 
 A) Check application logs → Test network connectivity → Verify Collector config → Check backend status  
-B) Restart the Collector → Check application instrumentation → Verify backend connectivity  
-C) Debug the Collector first → Verify end-to-end pipeline → Check trace completeness and context  
+B) Verify data generation at source → Check Collector pipeline metrics → Confirm backend ingestion  
+C) Restart the Collector → Check application instrumentation → Verify backend connectivity  
 D) Check backend storage → Verify Collector processing → Test application instrumentation
 
 <details>
 <summary><strong>Answer</strong></summary>
 
-**Answer: C**
+**Answer: B**
 
-The systematic debugging approach from Week 4:
-1. **Day 22:** Debug the Collector (infrastructure) first
-2. **Day 23:** Verify end-to-end pipeline (application → SDK → collector → backend)  
-3. **Day 24:** Check trace completeness and context propagation
+The systematic approach narrows the fault domain by checking each pipeline stage:
+1. **Verify data generation:** Is the app creating telemetry? (debug exporter, logs)
+2. **Check Collector metrics:** Is data flowing through the pipeline? (receiver → processor → exporter metrics)
+3. **Confirm backend ingestion:** Is the backend receiving and storing data?
 
-This follows the principle of debugging from infrastructure → pipeline → application level.
+This approach isolates the problem to a specific component rather than guessing. Each step either confirms that stage works or identifies where data is lost.
+
+**Why others are wrong:**
+- A: Too vague and doesn't follow the data flow systematically
+- C: Restarting components wastes time without understanding the problem
+- D: Works backwards from backend, making it harder to isolate the issue
 
 </details>
 
@@ -49,12 +52,17 @@ D) Increase Collector memory limits
 
 **Answer: B**
 
-A healthy status only means the Collector process is running. You need to check the pipeline metrics:
-- `otelcol_receiver_accepted_spans` - Is data coming in?
-- `otelcol_processor_accepted_spans` - Is data being processed?  
-- `otelcol_exporter_sent_spans` - Is data being exported?
+A healthy status only means the Collector process is running. You need to check the pipeline metrics to see where data is lost:
+- `otelcol_receiver_accepted_spans_total` - Is data coming in?
+- `otelcol_processor_accepted_spans_total` - Is data being processed?  
+- `otelcol_exporter_sent_spans_total` - Is data being exported?
 
 These metrics tell you exactly where in the pipeline data is getting lost.
+
+**Why others are wrong:**
+- A: Restarting without understanding the problem rarely helps
+- C: If Jaeger was down, you'd see exporter errors in Collector logs
+- D: Memory limits wouldn't cause zero traces (you'd see some data or OOM errors)
 
 </details>
 
@@ -86,10 +94,10 @@ Always start with verifying data generation before checking downstream component
 ---
 
 ### Question 4: Context Propagation Debugging
-You see spans from your API service but nothing from the downstream Payment service, even though payments succeed. What's the most likely issue?
+You see spans from your API service but nothing from the downstream Payment service, even though payments succeed. The Payment service logs show it's processing requests. What's the most likely issue?
 
 A) The Payment service is down  
-B) Context propagation is broken between services  
+B) Context propagation is broken between API and Payment services  
 C) The Collector is dropping Payment service spans  
 D) The Payment service has no instrumentation
 
@@ -98,40 +106,46 @@ D) The Payment service has no instrumentation
 
 **Answer: B**
 
-This is a classic Day 24 scenario: the request works (payment succeeds) but tracing is broken. The Payment service is likely:
-- Creating spans but in a new trace (missing context extraction)
-- Not forwarding trace context to downstream calls
-- Using incorrect header names for context propagation
+Key clues point to broken context propagation:
+- Payments succeed (service is working)
+- Payment service logs show processing (service is running and instrumented)
+- No Payment spans appear in traces (context not being extracted)
 
-The key clue is that the payment succeeds - this means it's a tracing problem, not an application problem.
+The Payment service is likely creating spans but in a new trace because it's not extracting trace context from incoming requests. This creates orphaned spans that don't connect to the API service trace.
+
+**Why others are wrong:**
+- A: Payment succeeds, so service is running
+- C: If Collector was dropping spans, you'd see gaps across all services
+- D: The extra clue (logs show processing) indicates the service has some instrumentation
 
 </details>
 
 ---
 
-## Section 2: Production Resilience (Days 25-27)
-
 ### Question 5: Backpressure Handling
-During a traffic spike, your Collector starts dropping spans. According to Day 25's three-layer defense, what happens automatically to handle this?
+During a traffic spike, your Collector starts experiencing memory pressure. What's the correct three-layer defense configuration order?
 
-A) The Collector crashes and restarts  
-B) Queue management activates first, then adaptive sampling if pressure continues, and memory limiter as last resort  
-C) All spans are immediately dropped to protect the system  
-D) The Collector requests applications to stop sending data
+A) Batch processor → Queue management → Memory limiter  
+B) Memory limiter → Queue management → Sampling decisions  
+C) Queue management → Sampling decisions → Memory limiter  
+D) Sampling decisions → Memory limiter → Queue management
 
 <details>
 <summary><strong>Answer</strong></summary>
 
 **Answer: B**
 
-From Day 25, the three-layer defense works automatically in order:
-1. **Queue Management (Layer 2):** Activates first to handle normal fluctuations by temporarily storing data
-2. **Adaptive Sampling (Layer 3):** Reduces data volume if pressure continues - some data is better than no data
-3. **Memory Limiter (Layer 1):** Emergency protection to prevent crashes by dropping data only when critically necessary
+The three-layer defense must be configured in this order:
+1. **Memory Limiter (Layer 1):** First in processor pipeline - prevents OOM by refusing new data when memory threshold is reached
+2. **Queue Management (Layer 2):** Exporter queues buffer data during temporary spikes
+3. **Sampling Decisions (Layer 3):** Reduce data volume at the source (SDK or tail-based sampling in Collector)
 
-This is called **graceful degradation** - maintaining functionality by temporarily reducing quality instead of failing completely.
+This configuration ensures the Collector never crashes from memory exhaustion while maintaining as much observability as possible during pressure.
 
-The system automatically recovers to full quality when pressure subsides.
+**Why others are wrong:**
+- A: Batch processor doesn't protect against memory pressure
+- C: Memory limiter must be first to protect the process
+- D: Sampling happens at SDK/source level, not in the processor pipeline order
 
 </details>
 
@@ -189,8 +203,6 @@ It works at pod creation time, not runtime monitoring.
 
 ---
 
-## Section 3: Production Patterns & Integration
-
 ### Question 8: Sampling Strategy
 For a high-traffic e-commerce site, what's the best sampling approach?
 
@@ -245,7 +257,7 @@ In Day 28, we used this pattern to filter health checks and batch telemetry befo
 In production, what's the most important Collector resource configuration?
 
 A) Setting CPU requests equal to limits  
-B) Configuring memory limits with appropriate batching settings (processor or exporter-native)  
+B) Configuring memory limits aligned with queue sizes and batch settings  
 C) Using the highest possible CPU and memory limits  
 D) Setting resource requests but no limits for flexibility
 
@@ -254,20 +266,24 @@ D) Setting resource requests but no limits for flexibility
 
 **Answer: B**
 
-Memory limits must align with batching configuration:
-- Batch size × average span size = memory per batch
-- Multiple concurrent batches = total memory usage
-- Memory limits prevent OOM kills
-- Proper batching optimizes both memory usage and export efficiency
-- Modern exporters with persistent storage provide better reliability than traditional batch processors
+Memory limits must align with your pipeline configuration:
+- Queue size × average telemetry size = memory per queue
+- Multiple exporters = multiple queues
+- Batch processor (if used) adds additional memory overhead
+- Memory limits prevent OOM kills in Kubernetes
 
-Misaligned batching settings and memory limits cause the most production issues.
+The calculation: (queue_size × item_size × num_exporters) + batch_overhead + processing_overhead = total memory needed.
+
+Misaligned memory limits and queue/batch settings cause the most production issues.
+
+**Why others are wrong:**
+- A: CPU requests=limits can cause throttling; not the most critical issue
+- C: Wastes resources and doesn't prevent OOM if configuration is wrong
+- D: No limits can cause node-level OOM and affect other pods
 
 </details>
 
 ---
-
-## Section 4: Advanced Concepts & Troubleshooting
 
 ### Question 11: OTTL Transformations
 You need to add a business context attribute based on the HTTP route. Which OTTL statement is correct?
@@ -295,25 +311,29 @@ Option A is missing `attributes[]` wrapper for the condition.
 ---
 
 ### Question 12: Performance Optimization
-Your high-frequency trading application needs minimal latency impact from tracing. What's the best approach?
+Your high-frequency trading application needs minimal latency impact from tracing. What's the best OTCA-appropriate approach?
 
 A) Disable tracing entirely during market hours  
-B) Use probabilistic sampling with 0.01% rate  
+B) Use aggressive head-based sampling (0.01%) with minimal instrumentation and async export  
 C) Implement zero-allocation instrumentation with object pooling  
 D) Only trace errors and slow requests
 
 <details>
 <summary><strong>Answer</strong></summary>
 
-**Answer: C**
+**Answer: B**
 
-For latency-sensitive applications, zero-allocation patterns are crucial:
-- Reuse span objects with sync.Pool
-- Pre-allocate attribute slices
-- Avoid string concatenation in hot paths
-- Use batch processing to amortize export costs
+For latency-sensitive applications, the OTCA-appropriate approach combines:
+- **Aggressive sampling:** 0.01% or lower to minimize overhead
+- **Minimal instrumentation:** Only critical operations, not every function call
+- **Async export:** BatchSpanProcessor with background export to avoid blocking
 
-Even 0.01% sampling has allocation overhead on every request.
+This balances observability needs with performance requirements using standard OpenTelemetry features.
+
+**Why others are wrong:**
+- A: Eliminates observability when you need it most (during trading hours)
+- C: Too implementation-specific and language-dependent for OTCA exam
+- D: Requires custom logic and doesn't address the sampling decision overhead
 
 </details>
 
