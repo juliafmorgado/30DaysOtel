@@ -1,418 +1,102 @@
 # OpenTelemetry Certification Quick Reference
 
-## Three Signals of Observability
+> **Purpose**: Fast lookup for definitions, defaults, and configurations. For exam strategy and practice, see [Exam Prep Guide](./otca-exam-prep.md).
+
+---
+
+## If You Remember Nothing Else...
+
+1. **service.name is a resource attribute**, not a span attribute
+2. **Propagators ≠ Exporters** - Propagators handle context (headers), exporters send telemetry to backends
+3. **Links ≠ Parent/Child** - Links relate spans across traces; parent/child is hierarchical within a trace
+4. **Tail sampling is typically Collector-side**, not SDK (SDK does head-based sampling)
+5. **High-cardinality attributes destroy metrics backends** - Never use trace_id, user_id, etc. as metric labels
+6. **Counters are monotonic** - Use UpDownCounter if values can decrease
+7. **Batch processor is in the SDK**, not just the Collector (though Collector has it too)
+8. **Context propagation happens at span creation**, not at export time
+9. **Environment variables have lower priority** than programmatic resource configuration
+10. **Extensions don't process telemetry** - They provide operational capabilities (health checks, pprof, etc.)
+
+---
+
+## Three Signals
 
 ### Traces
-- **Purpose**: Show request flow through distributed systems
-- **Components**: Traces → Spans → Attributes/Events
-- **Key IDs**: Trace ID (entire request), Span ID (single operation)
-- **Relationships**: Parent-child span relationships
+- Show request flow through distributed systems
+- Components: Trace ID → Spans → Attributes/Events
+- Parent-child relationships form the trace tree
 
 ### Metrics
-- **Purpose**: Numerical measurements over time
-- **Types**: 
-  - **Counter**: Monotonic, only increases (e.g., requests_total, bytes_sent)
-  - **UpDownCounter**: Can increase/decrease (e.g., active_connections, queue_size)
-  - **Histogram**: Distribution of values (e.g., request_duration, response_size)
-  - **Gauge**: Current value at a point in time (e.g., cpu_temperature, memory_usage)
-- **Aggregation**: Sum, count, min, max, percentiles
-- **Attributes**: Key-value pairs for dimensionality
+- **Counter**: Monotonic, only increases (requests_total, bytes_sent)
+- **UpDownCounter**: Can increase/decrease (active_connections, queue_size)
+- **Histogram**: Distribution of values (request_duration, response_size)
+- **Gauge**: Current value at a point in time (cpu_temperature, memory_usage)
 
 ### Logs
-- **Purpose**: Discrete events with timestamps
-- **Structure**: Timestamp, severity, body, attributes
-- **Correlation**: Can be linked to traces via trace/span IDs
-- **Processing**: Structured vs unstructured
-
-## Core Components
-
-### API vs SDK
-- **API**: Language-specific interfaces for instrumentation
-- **SDK**: Implementation that processes and exports data
-- **Separation**: Allows vendor-neutral instrumentation
-
-### Data Model
-- **Resource**: Describes the entity producing telemetry (service.name, host.name)
-- **Instrumentation Scope**: Identifies the instrumentation library (name, version)
-- **Attributes**: Key-value pairs for context (string, int, bool, array)
-- **Events**: Time-stamped occurrences within spans (exceptions, logs)
-- **Links**: Relationships between spans (batch processing, async operations)
-
-### Instrumentation Types
-- **Automatic**: No code changes, uses agents/libraries
-- **Manual**: Explicit instrumentation code
-- **Hybrid**: Combination of both approaches
-
-### SDK Pipelines
-
-#### Span Processors
-- **Simple**: Exports spans immediately (dev/testing)
-- **Batch**: Groups spans for efficient export (production)
-- **Custom**: User-defined processing logic
-
-#### Metric Readers
-- **Push**: SDK pushes metrics to backend (OTLP)
-- **Pull**: Backend scrapes metrics (Prometheus)
-- **Periodic**: Exports at regular intervals
-
-#### Log Record Processors
-- **Simple**: Immediate export
-- **Batch**: Grouped export for efficiency
-
-#### Samplers
-- **AlwaysOn**: Sample all traces (100%)
-- **AlwaysOff**: Sample no traces (0%)
-- **TraceIdRatioBased**: Probabilistic sampling (e.g., 10%)
-- **ParentBased**: Follow parent span's sampling decision
-
-### Context Propagation
-- **Purpose**: Pass trace context across service boundaries
-- **In-process**: Thread-local or async context
-- **Cross-process**: HTTP headers (W3C Trace Context), message metadata
-- **Standards**: W3C Trace Context, B3, Jaeger
-- **Baggage**: User-defined key-value pairs propagated across services
-- **Propagators**: Extract and inject context (composite propagator)
-
-### Zero-Code Instrumentation (Agents)
-- **Java**: OpenTelemetry Java Agent (JAR attachment)
-- **.NET**: OpenTelemetry .NET Automatic Instrumentation
-- **Python**: opentelemetry-instrument wrapper
-- **Node.js**: @opentelemetry/auto-instrumentations-node
-- **Trade-offs**: Easy setup vs limited customization
-
-### Composability & Vendor Neutrality
-**Key Principles:**
-- **API/SDK Separation**: APIs are stable, SDKs can be swapped
-- **Vendor Neutrality**: Same instrumentation code works with any backend
-- **Plugin Architecture**: Custom processors, exporters, samplers
-- **Language Implementations**: Consistent APIs across languages
-- **Extensibility**: Add custom components without forking
-
-**Benefits:**
-- No vendor lock-in
-- Switch backends without code changes
-- Mix and match components
-- Community-driven innovation
-
-## Semantic Conventions
-
-### Resource Attributes
-- `service.name` (required): Service identifier
-- `service.version`: Service version
-- `deployment.environment`: Environment (prod, staging, dev)
-
-### Common Span Attributes
-- `http.request.method`: HTTP method (GET, POST, etc.)
-- `http.response.status_code`: HTTP response code
-- `db.system`: Database system (postgresql, mysql, etc.)
-- `db.statement`: Database query
-
-### Span Kinds
-- `SPAN_KIND_CLIENT`: Outgoing request
-- `SPAN_KIND_SERVER`: Incoming request
-- `SPAN_KIND_INTERNAL`: Internal operation
-- `SPAN_KIND_PRODUCER`: Message producer
-- `SPAN_KIND_CONSUMER`: Message consumer
-
-## Signal APIs
-
-### Tracing API
-**Creating Spans:**
-```python
-# Get tracer
-tracer = trace.get_tracer(__name__, version="1.0.0")
-
-# Create span
-with tracer.start_as_current_span("operation_name") as span:
-    span.set_attribute("key", "value")
-    span.add_event("event_name", {"detail": "info"})
-    span.set_status(Status(StatusCode.OK))
-```
-
-**Span Operations:**
-- Set attributes: `span.set_attribute(key, value)`
-- Add events: `span.add_event(name, attributes, timestamp)`
-- Record exceptions: `span.record_exception(exception)`
-- Set status: `span.set_status(StatusCode.OK/ERROR, description)`
-- Add links: Created at span start, link to other spans
-
-### Metrics API
-**Instrument Types:**
-
-**Counter** (monotonic, non-negative):
-```python
-counter = meter.create_counter("requests", unit="1")
-counter.add(1, {"endpoint": "/api", "method": "GET"})
-```
-
-**UpDownCounter** (can increase/decrease):
-```python
-updown = meter.create_up_down_counter("connections", unit="1")
-updown.add(1)   # Connection opened
-updown.add(-1)  # Connection closed
-```
-
-**Histogram** (distribution of values):
-```python
-histogram = meter.create_histogram("request.duration", unit="ms")
-histogram.record(125.5, {"endpoint": "/api"})
-```
-
-**Gauge** (synchronous, current value):
-```python
-gauge = meter.create_gauge("cpu.temperature", unit="C")
-gauge.record(72.5, {"core": "0"})
-```
-
-**Asynchronous Instruments:**
-```python
-# Observable Counter (async, monotonic)
-def observe_cpu_time(result):
-    result.observe(get_cpu_time(), {"cpu": "0"})
-
-meter.create_observable_counter("cpu.time", callbacks=[observe_cpu_time])
-
-# Observable Gauge (async, current value)
-meter.create_observable_gauge("memory.usage", callbacks=[observe_memory])
-
-# Observable UpDownCounter (async, can increase/decrease)
-meter.create_observable_up_down_counter("queue.size", callbacks=[observe_queue])
-```
-
-### Logs API
-**Structured Logging:**
-```python
-logger = logs.get_logger(__name__, version="1.0.0")
-
-# Emit log record
-logger.emit(
-    body="User login successful",
-    severity_number=SeverityNumber.INFO,
-    attributes={"user.id": "123", "ip": "192.168.1.1"}
-)
-```
-
-**Trace Correlation:**
-- Logs automatically include trace_id and span_id when emitted within a span
-- Enables correlation between logs and traces
-
-## SDK Configuration Methods
-
-### 1. Environment Variables
-```bash
-export OTEL_SERVICE_NAME=my-service
-export OTEL_EXPORTER_OTLP_ENDPOINT=http://collector:4317
-```
-- Easiest for containerized environments
-- No code changes required
-- Standard across languages
-
-### 2. Programmatic Configuration
-```python
-from opentelemetry.sdk.resources import Resource
-from opentelemetry.sdk.trace import TracerProvider
-
-resource = Resource.create({
-    "service.name": "my-service",
-    "service.version": "1.0.0"
-})
-
-provider = TracerProvider(resource=resource)
-trace.set_tracer_provider(provider)
-```
-- Most flexible
-- Language-specific
-- Runtime configuration
-
-### 3. Configuration Files
-```yaml
-# YAML configuration (language-dependent)
-service:
-  name: my-service
-  version: 1.0.0
-exporter:
-  otlp:
-    endpoint: http://collector:4317
-```
-- Structured configuration
-- Easy to version control
-- Varies by language implementation
-
-### 4. Resource Detection
-```python
-from opentelemetry.sdk.resources import (
-    Resource,
-    ProcessResourceDetector,
-    OTELResourceDetector
-)
-
-resource = Resource.create().merge(
-    ProcessResourceDetector().detect()
-).merge(
-    OTELResourceDetector().detect()
-)
-```
-- Automatic detection of environment
-- Cloud provider metadata
-- Process and host information
-
-## OpenTelemetry Collector
-
-### Architecture
-```
-Receivers → Processors → Exporters
-```
-
-### Core Receivers
-- **otlp**: Native OpenTelemetry protocol
-- **jaeger**: Jaeger trace format
-- **prometheus**: Prometheus metrics
-- **filelog**: Log files
-
-### Essential Processors
-- **memory_limiter**: Prevents memory exhaustion
-- **batch**: Groups data for efficient export (not being recommended anymore but might still be on the exam)
-- **attributes**: Add/modify/remove attributes
-- **filter**: Remove unwanted data
-- **transform**: Complex transformations with OTTL
-
-### Common Exporters
-- **otlp**: Native OpenTelemetry export
-- **jaeger**: Jaeger backend
-- **prometheus**: Prometheus metrics
-- **logging**: Debug output to logs
-- **file**: Export to files
-
-### Processor Order
-```yaml
-processors: [memory_limiter, attributes, filter, batch]
-```
-**Rule**: Memory limiter first, batch last
-
-## Deployment Patterns
-
-### Agent Pattern
-- **Deployment**: One per host (DaemonSet)
-- **Benefits**: Low latency, high availability
-- **Use case**: High-volume applications
-
-### Gateway Pattern
-- **Deployment**: Centralized instances
-- **Benefits**: Advanced processing, cost efficiency
-- **Use case**: Complex transformations
-
-### Sidecar Pattern
-- **Deployment**: One per application pod
-- **Benefits**: Isolation, simple configuration
-- **Use case**: Specific application needs
-
-## OTTL (OpenTelemetry Transformation Language)
-
-### Contexts
-- **resource**: Resource-level attributes
-- **scope**: Instrumentation scope
-- **span**: Individual span data
-- **metric**: Metric data
-- **datapoint**: Individual metric points
-- **log**: Log record data
-
-### Common Functions
-```yaml
-# Set attribute value
-set(attributes["key"], "value")
-
-# Delete attribute
-delete_key(attributes, "key")
-
-# Conditional operations
-set(attributes["env"], "prod") where service.name == "api"
-
-# String operations
-Concat([attributes["method"], " ", attributes["path"]], "")
-```
-
-## Default Ports
-
-### OTLP
-- **4317**: OTLP over gRPC
-- **4318**: OTLP over HTTP
-
-### Collector Internal
-- **8888**: Metrics endpoint
-- **13133**: Health check (with health_check extension)
-- **55679**: zpages (with zpages extension)
-
-### Legacy Protocols
-- **14250**: Jaeger gRPC
-- **9411**: Zipkin HTTP
-
-## Environment Variables
-
-### Common SDK Variables
-```bash
-# Service identification
-OTEL_SERVICE_NAME=my-service
-OTEL_RESOURCE_ATTRIBUTES=service.version=1.0.0,deployment.environment=production,team=backend
-
-# OTLP over HTTP/protobuf
-OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
-OTEL_EXPORTER_OTLP_ENDPOINT=http://collector:4318
-OTEL_EXPORTER_OTLP_HEADERS="authorization=Bearer token"
-
-# Signal-specific endpoints (optional override)
-OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://collector:4318/v1/traces
-OTEL_EXPORTER_OTLP_METRICS_ENDPOINT=http://collector:4318/v1/metrics
-OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=http://collector:4318/v1/logs
-```
-
-### Sampling Configuration
-```bash
-OTEL_TRACES_SAMPLER=traceidratio
-OTEL_TRACES_SAMPLER_ARG=0.1  # 10% sampling
-
-# Other sampler options:
-# always_on, always_off, parentbased_always_on, 
-# parentbased_always_off, parentbased_traceidratio
-```
-
-### SDK Configuration
-```bash
-# Span processor
-OTEL_BSP_SCHEDULE_DELAY=5000  # Batch delay in ms
-OTEL_BSP_MAX_QUEUE_SIZE=2048  # Max queue size
-OTEL_BSP_MAX_EXPORT_BATCH_SIZE=512  # Max batch size
-
-# Propagators
-OTEL_PROPAGATORS=tracecontext,baggage  # W3C Trace Context + Baggage
-```
-
-## Sampling Strategies
-
-### Head-based Sampling
-- **Decision point**: At trace start (root span)
-- **Types**: Always on/off, probabilistic, rate limiting
-- **Pros**: Low overhead, consistent
-- **Cons**: Can't sample based on trace content
-
-### Tail-based Sampling
-- **Decision point**: After trace completion
-- **Types**: Error-based, latency-based, attribute-based
-- **Pros**: Content-aware decisions
-- **Cons**: Higher overhead, requires buffering
-
-## Configuration Examples
-
-### Basic Collector Pipeline
+- Discrete events with timestamps
+- Can be correlated to traces via trace_id/span_id
+
+---
+
+## Core Data Model
+
+| Component | Purpose | Example |
+|-----------|---------|---------|
+| **Resource** | Entity producing telemetry | service.name, host.name, deployment.environment |
+| **Instrumentation Scope** | Library that created telemetry | name, version |
+| **Attributes** | Key-value context | http.request.method, db.system |
+| **Events** | Time-stamped occurrences | exceptions, cache hits |
+| **Links** | Relationships between spans | batch job → triggering requests |
+| **Baggage** | Cross-cutting context propagated with requests | tenant_id, user_tier (low-cardinality only!) |
+
+---
+
+## API vs SDK
+
+- **API**: Language-specific interfaces for instrumentation (stable, vendor-neutral)
+- **SDK**: Implementation that processes and exports data (configurable, pluggable)
+- **Separation**: Instrument once, swap backends without code changes
+
+---
+
+## Sampler Behaviors in One Glance
+
+| Sampler | Behavior | Use Case |
+|---------|----------|----------|
+| AlwaysOn | Sample 100% | Development, debugging |
+| AlwaysOff | Sample 0% | Disable tracing |
+| TraceIdRatioBased | Probabilistic (e.g., 10%) | Production cost control |
+| ParentBased | Inherit parent's decision | Consistent distributed traces |
+
+**Key**: Head-based (SDK, at span creation) vs Tail-based (Collector, after trace completion)
+
+---
+
+## Context Propagation
+
+**In-process**: Thread-local or async-local storage
+**Cross-process**: HTTP headers (traceparent, tracestate)
+**Baggage**: Low-cardinality cross-cutting concerns (tenant_id, user_tier)
+
+**Standards**: W3C Trace Context (default), B3, Jaeger
+
+---
+
+## Collector Pipeline Skeleton
+
 ```yaml
 receivers:
   otlp:
     protocols:
       grpc:
         endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
 
 processors:
   memory_limiter:
     limit_mib: 512
+    check_interval: 1s
   batch:
     timeout: 1s
     send_batch_size: 1024
@@ -420,148 +104,218 @@ processors:
 exporters:
   otlp:
     endpoint: http://backend:4317
+  logging:
+    loglevel: debug
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+  zpages:
+    endpoint: 0.0.0.0:55679
 
 service:
+  extensions: [health_check, zpages]
   pipelines:
     traces:
       receivers: [otlp]
       processors: [memory_limiter, batch]
-      exporters: [otlp]
+      exporters: [otlp, logging]
 ```
 
-### Multi-Backend Export
+**Processor order rule**: memory_limiter first, batch last
+
+---
+
+## Deployment Patterns
+
+| Pattern | Deployment | Benefits | Use Case |
+|---------|-----------|----------|----------|
+| **Agent** | One per host (DaemonSet) | Low latency, host metrics | High-volume apps |
+| **Gateway** | Centralized instances | Policy enforcement, cost control | Complex transformations |
+| **Hybrid** | Agents + Gateway | Best of both | Production recommended |
+
+---
+
+## Semantic Conventions
+
+### Resource Attributes (entity-level)
+- `service.name` (required)
+- `service.version`
+- `deployment.environment` (prod, staging, dev)
+- `host.name`, `host.id`
+
+### Span Attributes (request-level)
+- `http.request.method` (GET, POST) - stable HTTP semconv v1.x
+- `http.response.status_code` (200, 404)
+- `db.system` (postgresql, mysql)
+- `db.statement` (SQL query)
+- `server.address`, `server.port` (peer service info)
+- `network.peer.address` (IP address)
+
+**Note**: Prefer `server.address` when you know the logical remote service (for service graphs)
+
+### Span Kinds
+- CLIENT: Outgoing request
+- SERVER: Incoming request
+- INTERNAL: Internal operation
+- PRODUCER: Message producer
+- CONSUMER: Message consumer
+
+---
+
+## OTTL Quick Reference
+
+**Contexts**: resource, scope, span, metric, datapoint, log
+
+**Common Functions**:
 ```yaml
-exporters:
-  jaeger:
-    endpoint: http://jaeger:14250
-    tls:
-      insecure: true
-  
-  prometheus:
-    endpoint: "0.0.0.0:8889"
+# Set attribute
+set(attributes["key"], "value")
 
-service:
-  pipelines:
-    traces:
-      receivers: [otlp]
-      processors: [batch]
-      exporters: [jaeger]
-    
-    metrics:
-      receivers: [otlp]
-      processors: [batch]
-      exporters: [prometheus]
+# Delete attribute
+delete_key(attributes, "key")
+
+# Conditional
+set(attributes["env"], "prod") where service.name == "api"
+
+# String operations
+Concat([attributes["method"], " ", attributes["path"]], "")
 ```
 
-## Debugging Commands
+---
 
-### Check Collector Health
+## Environment Variables Cheat Sheet
+
 ```bash
-curl http://localhost:13133/
+# Service identity
+OTEL_SERVICE_NAME=my-service
+OTEL_RESOURCE_ATTRIBUTES=service.version=1.0.0,deployment.environment=prod
+
+# OTLP endpoint
+OTEL_EXPORTER_OTLP_ENDPOINT=http://collector:4318
+OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+OTEL_EXPORTER_OTLP_HEADERS="authorization=Bearer token"
+
+# Sampling
+OTEL_TRACES_SAMPLER=traceidratio
+OTEL_TRACES_SAMPLER_ARG=0.1  # 10%
+
+# Batch processor
+OTEL_BSP_SCHEDULE_DELAY=5000  # ms
+OTEL_BSP_MAX_QUEUE_SIZE=2048
+OTEL_BSP_MAX_EXPORT_BATCH_SIZE=512
+
+# Propagators
+OTEL_PROPAGATORS=tracecontext,baggage
 ```
 
-### View Collector Metrics
-```bash
-curl http://localhost:8888/metrics
-```
+**Priority**: Env vars (lowest) < Resource detectors < Programmatic config (highest)
 
-### Test OTLP Endpoint
-```bash
-curl -X POST http://localhost:4318/v1/traces \
-  -H "Content-Type: application/json" \
-  -d '{"resourceSpans":[]}'
-```
+---
 
-## Common Issues and Solutions
+## Do-Not-Do List
 
-### Missing Traces
-1. Check context propagation
-2. Verify exporter configuration
-3. Check sampling settings
-4. Validate network connectivity
+### Cardinality Killers
+❌ **Never** use high-cardinality values as metric attributes:
+- trace_id, span_id
+- user_id, session_id
+- request_id, transaction_id
+- Full URLs with query params
 
-### High Memory Usage
-1. Add memory_limiter processor
-2. Reduce batch sizes
-3. Increase export frequency
-4. Filter unnecessary data
+✅ **Do** use low-cardinality attributes:
+- endpoint (templated: `/users/{id}`)
+- http_method (GET, POST)
+- status_code (200, 404)
+- environment (prod, staging)
 
-### Export Failures
-1. Check backend connectivity
-2. Verify authentication
-3. Review retry configuration
-4. Check for rate limiting
+### Secrets & PII
+❌ **Never** put in telemetry:
+- Passwords, API keys, tokens
+- Credit card numbers, SSNs
+- Full email addresses, phone numbers
+- JWT tokens in baggage
 
-### Backpressure Issues
-1. Enable sending_queue with persistent storage
-2. Adjust queue size and retry settings
-3. Use memory_limiter to prevent OOM
-4. Scale collector horizontally
-5. Implement load balancing
+✅ **Do** redact at Collector with attributes/transform processor
 
-## Key Metrics to Monitor
+### Context Propagation
+❌ **Don't**:
+- Create new root spans for outbound calls (breaks traces)
+- Put large data in baggage (size limits, propagates everywhere)
+- Forget to extract context on inbound requests
 
-### Collector Health
-- `otelcol_process_memory_rss`: Memory usage
-- `otelcol_receiver_accepted_spans_total`: Spans received
-- `otelcol_exporter_sent_spans_total`: Spans exported
-- `otelcol_exporter_send_failed_spans_total`: Export failures
-- `otelcol_exporter_queue_size`: Current queue size (backpressure indicator)
-- `otelcol_exporter_queue_capacity`: Maximum queue capacity
+✅ **Do**:
+- Use current context as parent for child spans
+- Keep baggage low-cardinality and small
+- Verify traceparent header presence
 
-### Application Metrics
-- Request rate and latency
-- Error rates by service
-- Resource utilization
-- Business KPIs
+---
 
-## Security Considerations
+## Collector Components
 
-### Authentication
-- API keys in headers
-- mTLS certificates
-- OAuth 2.0 tokens
-- Basic authentication
+### Receivers (data in)
+- **otlp**: Native OpenTelemetry
+- **prometheus**: Scrape metrics
+- **filelog**: Parse log files
+- **jaeger**: Jaeger traces
 
-### Data Privacy
-- Remove PII attributes
-- Mask sensitive data
-- Implement data retention policies
-- Ensure compliance (GDPR, etc.)
+### Processors (data transform)
+- **memory_limiter**: Prevent OOM (use first!)
+- **batch**: Group for efficiency (commonly used in production)
+- **attributes**: Add/modify/delete attributes
+- **filter**: Drop unwanted data
+- **transform**: OTTL transformations
 
-### Network Security
-- Use TLS for transport
-- Validate certificates
-- Implement network policies
-- Monitor for anomalies
+### Exporters (data out)
+- **otlp**: Native export
+- **prometheus**: Metrics endpoint
+- **logging**: Debug to stdout
+- **file**: Export to files
 
-## Best Practices
+### Extensions (operational)
+- **health_check**: Liveness/readiness
+- **zpages**: Live debugging
+- **pprof**: Go profiling
 
-### Instrumentation
-1. Start with automatic instrumentation
-2. Add manual instrumentation for business logic
-3. Use semantic conventions
-4. Implement proper error handling
-5. Don't over-instrument
+---
 
-### Collector Configuration
-1. Always use memory_limiter
-2. Order processors correctly
-3. Use batching for efficiency
-4. Implement proper retry logic
-5. Monitor Collector health
-6. Configure backpressure handling (sending_queue)
+## Common Issues → Quick Fixes
 
-### Backpressure Management
-1. Use exporters with sending_queue enabled
-2. Configure queue size based on traffic patterns
-3. Enable persistent storage for durability
-4. Set appropriate retry_on_failure settings
-5. Monitor queue length metrics
+| Symptom | Most Likely Cause | Fix |
+|---------|------------------|-----|
+| service.name="unknown_service" | Resource not configured | Set OTEL_SERVICE_NAME or OTEL_RESOURCE_ATTRIBUTES |
+| Fragmented traces | Context propagation broken | Check traceparent header injection/extraction |
+| Spans dropped | Queue overflow or memory limit | Increase queue size, check exporter performance |
+| No DB spans (auto-instr) | Library not supported | Check instrumentation library compatibility |
+| High cardinality explosion | Wrong metric attributes | Remove high-cardinality labels (user_id, trace_id) |
+| Export failures | Backend connectivity | Check endpoint, auth, network |
 
-### Production Operations
-1. Plan for scale from day one
-2. Implement proper monitoring
-3. Have debugging procedures
-4. Plan for disaster recovery
-5. Optimize costs continuously
+---
+
+## Security Checklist
+
+✅ Use TLS/mTLS for OTLP endpoints
+✅ Redact PII at Collector (attributes/transform processor)
+✅ Authenticate exporters (API keys, OAuth)
+✅ Implement data retention policies
+✅ Monitor for anomalies
+✅ Use network policies in Kubernetes
+
+---
+
+## Production Best Practices
+
+1. **Always use memory_limiter** (first processor)
+2. **Always use batch processor** (last processor, before export)
+3. **Configure sending_queue** in exporters (buffer during outages)
+4. **Enable retry_on_failure** (handle transient failures)
+5. **Monitor Collector health** (metrics on port 8888)
+6. **Use agent + gateway pattern** (production recommended)
+7. **Implement proper sampling** (cost control)
+8. **Follow semantic conventions** (interoperability)
+9. **Test context propagation** (distributed tracing)
+10. **Plan for scale** (horizontal scaling, load balancing)
+
+---
+
+**Last updated**: January 2026
+**Exam version**: OTCA (OpenTelemetry Certified Associate)
