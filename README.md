@@ -16,27 +16,26 @@ This is a **public learning project** designed to help others follow along and b
 |--------|-------|-------|-------------------|
 | **1** | Observability Fundamentals | Understanding traces, metrics, logs; semantic conventions; auto vs manual instrumentation | Mental models + reading real traces |
 | **2** | OpenTelemetry APIs & SDK | Hands-on with Tracing API, Metrics API, Logs API, context propagation, SDK pipelines | Instrumented Node.js apps |
-| **3** | OpenTelemetry Collector | Receivers, processors, exporters, transformations (OTTL), deployment models, scaling | Full collector pipeline + multi-backend routing |
-| **4** | Production & Certification | Debugging, security, Kubernetes Operator, architecture patterns, OTCA exam prep | Complete observable system + certification readiness |
+| **3** | OpenTelemetry Collector | Receivers, processors, exporters, transformations (OTTL), deployment models, scaling | Full collector pipeline with OTTL transformations |
+| **4** | Production Readiness & Certification | Troubleshooting, debugging, security, Kubernetes Operator, production best practices, OTCA exam prep | Complete observable system + certification readiness |
 
 ---
 
 ## Goals of This Project
 
 - Understand **observability fundamentals** (why it matters, what problems it solves)
-- Be fluent in **tracing, metrics, and logs** (the three pillars of observability)
+- Become fluent in **tracing, metrics, and logs** (the three pillars of observability)
 - Master the **OpenTelemetry API & SDK** (creating telemetry in code)
 - Build and configure the **OpenTelemetry Collector** (processing and routing telemetry)
-- Debug real pipelines using **zPages, logging exporters, sampling strategies, and memory limiters**
-- Build a **final project** with:
-  - Instrumented multi-service application
-  - Full collector pipeline with transformations (OTTL)
-  - Multiple backends (Jaeger for traces, Prometheus for metrics, Loki for logs)
-  - Production-ready security and cost optimization
+- Learn **production patterns** including:
+  - Debugging distributed traces and missing telemetry
+  - Troubleshooting collector pipelines
+  - Production best practices (security, performance, cost optimization)
+  - Kubernetes deployment with OpenTelemetry Operator
 - **Pass the OpenTelemetry Certified Associate (OTCA) exam** with comprehensive preparation including:
   - Complete coverage of all 4 certification domains
-  - Practice questions and assessment scenarios
-  - Study guide and exam strategies
+  - Practice questions and mock exam
+  - Quick reference guide and exam strategies
 
 ---
 
@@ -55,6 +54,8 @@ This is a **public learning project** designed to help others follow along and b
 | 6 | Instrumentation | Auto-instrumentation vs manual; when to use each; how spans get created |
 | 7 | Week 1 Review | Consolidation + missing pieces (sampling preview, context propagation details) |
 
+[Week 1 Knowledge Check](week1/week1-knowledge-check.md)
+
 </details>
 
 <details>
@@ -67,8 +68,10 @@ This is a **public learning project** designed to help others follow along and b
 | 10 | Metrics API | Counters, gauges, histograms; measuring what matters |
 | 11 | Logs API | Structured logging + trace correlation; logs as part of the telemetry story |
 | 12 | Context Propagation | How trace context flows through your app and across services |
-| 13 | SDK Pipelines | Samplers, processors, exporters; controlling telemetry flow |
-| 14 | Hands-on + Week 2 Review | Build an instrumented app + recap |
+| 13 | Break Day | Rest and recharge |
+| 14 | Week 2 Review | Recap of APIs, SDK basics, and what we've accomplished |
+
+[Week 2 Knowledge Check](week2/week2-knowledge-check.md)
 
 </details>
 
@@ -85,6 +88,8 @@ This is a **public learning project** designed to help others follow along and b
 | 20 | Deployment & Scaling | Agent vs Gateway patterns; basic scaling concepts |
 | 21 | Week 3 Recap | Insights and wisdom; mindset shifts from learning to architecting |
 
+[Week 3 Knowledge Check](week3/week3-knowledge-check.md)
+
 </details>
 
 <details>
@@ -93,14 +98,22 @@ This is a **public learning project** designed to help others follow along and b
 | Day | Topic | What We'll Learn |
 |-----|-------|-------------------|
 | 22 | Debugging the Collector | Systematic debugging approaches, logging exporters, health checks, metrics analysis |
-| 23 | Debugging Distributed Traces | Finding lost spans, broken context propagation, systematic troubleshooting workflows |
-| 24 | Production Issues at Scale | Backpressure management, dropped spans, error handling, resource management |
-| 25 | Production Best Practices | Security (TLS, PII protection), performance optimization, monitoring strategies |
-| 26 | OpenTelemetry Operator Overview | Kubernetes-native observability, auto-instrumentation, CRDs, deployment modes |
-| 27 | Real-World Architecture Patterns | Startup growth, enterprise multi-tenant, hybrid cloud, cost-optimized patterns |
-| 28 | **Final Project** | Build complete e-commerce observability stack with security, cost optimization, business context |
-| 29 | Advanced Topics Preview | Custom instrumentation, advanced sampling, security observability, emerging technologies |
-| 30 | **Certification Study Guide & Assessment** | OTCA exam preparation, practice questions, domain review, final assessment |
+| 23 | Where the Heck is My Data? | Troubleshooting missing telemetry data through the entire pipeline (application → SDK → collector → backend) |
+| 24 | Debugging Distributed Traces | Finding lost spans, broken context propagation, systematic troubleshooting workflows |
+| 25 | Production Issues at Scale | Backpressure management, dropped spans, error handling, resource management |
+| 26 | Production Best Practices | Security (TLS, PII protection), performance optimization, monitoring strategies |
+| 27 | OpenTelemetry Operator Overview | Kubernetes-native observability, auto-instrumentation injector, CRDs, deployment modes |
+| 28 | Final Project | Build a complete observability stack with Dash0 integration |
+| 29 | Week 4 Recap | Systematic review of debugging trilogy, production patterns, and key concepts mastered |
+| 30 | What's Next | Advanced OpenTelemetry topics and continuing your observability journey |
+
+[Week 4 Knowledge Check](week4/week4-knowledge-check.md)
+
+**OTCA Certification Resources:**
+- [OTCA Exam Preparation Guide](week4/otca-exam-prep.md) - Complete study guide covering all 4 domains
+- [OTCA Mock Exam](week4/otca-mock-exam.md) - 20 practice questions with detailed answers
+- [OTCA Quick Reference](week4/otca-quick-reference.md) - Essential concepts and commands for exam day
+
 
 </details>
 
@@ -109,10 +122,12 @@ This is a **public learning project** designed to help others follow along and b
 ## Prerequisites
 
 **To follow along, you'll need:**
-- Basic JavaScript/Node.js knowledge (examples use Express.js)
+- Basic JavaScript/Node.js knowledge (examples use Express.js, but you can use any language with OpenTelemetry support)
 - Docker installed (for running Jaeger and other backends)
 - Terminal/command line familiarity
-- Curiosity about observability! 🔍
+- Curiosity about observability!
+
+**Note:** While our examples use Node.js, OpenTelemetry supports many languages including Python, Go, Java, .NET, Ruby, PHP, and more. The concepts are the same across all languages.
 
 **Optional but helpful:**
 - Experience with distributed systems
@@ -136,7 +151,7 @@ This is a learning project, which means **I will make mistakes**. If you spot:
 3. Leave a comment on social media posts
 4. DM me directly
 
-All contributions welcome, from typo fixes to major corrections. You'll be credited!
+All contributions welcome, from typo fixes to major corrections.
 
 ---
 
@@ -150,10 +165,6 @@ All contributions welcome, from typo fixes to major corrections. You'll be credi
 **Books:**
 - [Practical OpenTelemetry: Adopting Open Observability Standards Across Your Organization](https://www.amazon.com/Practical-OpenTelemetry-Observability-Standards-Organization/dp/1484290747) by [Daniel Gomez Blanco](https://www.linkedin.com/in/danielgblanco86/)
 - [Learning OpenTelemetry](https://www.oreilly.com/library/view/learning-opentelemetry/9781098147174/) by [Ted Young](https://www.linkedin.com/in/ted-young/) and [Austin Parker](https://www.linkedin.com/in/austinlparker/)
-
-**Courses/Workshops:**
-- [OpenTelemetry Course on Udemy](https://www.udemy.com/course/opentelemetry/) (if I find a good one)
-- Dash0 internal workshops (from my team)
 
 **Community:**
 - [OpenTelemetry Slack](https://cloud-native.slack.com/) (#opentelemetry channel)
