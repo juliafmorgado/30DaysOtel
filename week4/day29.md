@@ -7,7 +7,9 @@ During this week we went from someone who could build observability systems to s
 Week 4 took us through three distinct phases:
 
 **Phase 1: The Debugging Trilogy (Days 22-24)**
+
 **Phase 2: Production Readiness (Days 25-27)** 
+
 **Phase 3: Putting it all together in a real-world project (Day 28)** 
 
 ---
@@ -90,8 +92,11 @@ Unlike Day 22, where the Collector itself may be misconfigured or unhealthy, Day
 ## The Debugging Progression Makes Sense
 
 >The Golden Rule of Debugging
+>
 > Never debug application code until you’ve proven the Collector works.
+>
 > Never debug the backend until you’ve proven data leaves the app.
+>
 > Never debug trace structure until you’ve proven spans exist.
 
 **Day 22:** Fix the infrastructure (Collector) first  
