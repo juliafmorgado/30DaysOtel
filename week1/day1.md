@@ -13,7 +13,7 @@ I'm also a bit scared of pretending I understand when I don't. I've talked a lot
 
 ## My 30-Day Plan
 
-This is the roadmap I'll follow for the next 30 days. It's detailed, but I expect it to evolve as I learn more and realize what I don't know yet.
+This is the roadmap I'll follow for the next 30 days. It's detailed, but I expect it to evolve as I learn more and realize what I don't know yet. I'll also get back to it and update it in case something changes.
 
 ### Week 1 – Observability Fundamentals
 - **Day 1:** Introduction to the journey  
@@ -22,36 +22,36 @@ This is the roadmap I'll follow for the next 30 days. It's detailed, but I expec
 - **Day 4:** Understanding spans  
 - **Day 5:** Semantic conventions  
 - **Day 6:** Auto vs manual instrumentation  
-- **Day 7:** Week 1 recap + consolidation  
+- **Day 7:** Week 1 recap
 
 ### Week 2 – OpenTelemetry APIs & SDK
-- **Day 8:** API vs SDK (architecture and separation of concerns)  
-- **Day 9:** Tracing API (nested spans, events, attributes)  
-- **Day 10:** Metrics API (counters, gauges, histograms)  
-- **Day 11:** Logs API (structured logs and trace correlation)  
+- **Day 8:** API vs SDK 
+- **Day 9:** Tracing API 
+- **Day 10:** Metrics API 
+- **Day 11:** Logs API  
 - **Day 12:** Context propagation  
-- **Day 13:** SDK pipelines (samplers, processors, exporters)  
-- **Day 14:** Hands-on instrumentation + Week 2 recap  
+- **Day 13:** BREAK
+- **Day 14:** Week 2 recap  
 
 ### Week 3 – The OpenTelemetry Collector
-- **Day 15:** Collector architecture (the big picture)  
-- **Day 16:** Receivers (OTLP, Filelog, Prometheus)  
-- **Day 17:** Processors (batch, transform, attributes, tail sampling)  
-- **Day 18:** Exporters (Jaeger, Prometheus, Loki, Tempo)  
-- **Day 19:** Transformations (OTTL deep dive)  
-- **Day 20:** Deployment models (agent, gateway, sidecar, DaemonSet)  
-- **Day 21:** Scaling (load balancing, HA, multi-collector architectures)  
-- **Day 22:** Week 3 recap  
+- **Day 15:** Collector architecture
+- **Day 16:** Receivers 
+- **Day 17:** Processors   
+- **Day 18:** Exporters 
+- **Day 19:** OTTL deep dive
+- **Day 20:** Deployment models and Scaling
+- **Day 21:** Week 3 recap  
 
 ### Week 4 – Production Patterns & Final Project
-- **Day 23:** Debugging the Collector (logging exporter, zPages)  
-- **Day 24:** Debugging traces (propagation failures, message queues)  
-- **Day 25:** Backpressure, dropped spans, error handling  
-- **Day 26:** Schema management (semantic convention versions)  
-- **Day 27:** Advanced patterns + architecture review  
-- **Day 28:** **Final project** (app + Collector + transformations + exporters)  
-- **Day 29:** Week 4 recap + lessons learned  
-- **Day 30:** Mock OTCA exam + final review + next steps  
+- **Day 22:** Debugging the Collector
+- **Day 23:** Troubleshooting missing telemetry
+- **Day 24:** Debugging distributed traces  
+- **Day 25:** Handling production issues 
+- **Day 26:** Security and performance basics   
+- **Day 27:** OpenTelemetry Operator 
+- **Day 28:** **Final project** (simple API with full observability stack)  
+- **Day 29:** Week 4 recap
+- **Day 30:** Advanced OTel topics
 
 ## What I’ll Share Each Day
 
