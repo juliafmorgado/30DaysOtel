@@ -48,6 +48,70 @@ Root cause found in 90 seconds.
 
 ---
 
+## Real-world stories: what this looks like in practice
+
+Here are three real incidents where observability made the difference between minutes and hours (or days) of downtime.
+
+<details>
+<summary><strong>E-commerce: Black Friday checkout failures</strong></summary>
+
+**The situation:** During Black Friday, checkout started failing for 30% of customers. Traditional monitoring only showed "high CPU usage" — nothing actionable.
+
+**Without observability:** Engineers would be grepping through logs on 12 different servers, checking CPU dashboards, database slow query logs, and load balancer logs — all in separate places. Two hours in, still guessing.
+
+**What observability revealed:** Distributed traces showed the exact failure path:
+
+```
+Checkout request (2.4s total)
+├─ API Gateway: 20ms ✓
+├─ Cart Service: 50ms ✓
+└─ Payment Service: 2,330ms ✗
+   └─ Stripe (primary): timeout + retry
+```
+
+The third-party payment provider was timing out and causing cascading failures. The team rerouted traffic to a backup provider within minutes.
+
+**The outcome:** Checkout failures dropped from 30% to under 1%. Estimated $2.3 million in lost sales avoided. Total time to resolution: 8 minutes.
+
+**The lesson:** The problem *appeared* to be in the payment service, but was actually caused by an external dependency. Without a trace connecting all the dots, you'd never find this quickly.
+
+</details>
+
+<details>
+<summary><strong>Streaming service: video buffering on certain TVs</strong></summary>
+
+**The situation:** Users reported video buffering, but traditional metrics showed normal network performance. Support tickets were piling up with no clear pattern.
+
+**Without observability:** Support teams were responding to individual complaints. Engineers saw nothing unusual in their dashboards. No way to know if this was widespread or isolated.
+
+**What observability revealed:** By correlating telemetry across device types, engineers discovered the buffering rate was 12% on smart TVs but under 0.5% everywhere else. Drilling further: Samsung 2019 models with a specific video codec (HEVC) had a 45% buffer rate — while the same devices using a different codec were completely fine.
+
+**The outcome:** A targeted fix was deployed only to affected devices. User complaints dropped 94% overnight. Total time to root cause: 45 minutes.
+
+**The lesson:** The issue wasn't the network, the servers, or even the devices broadly — it was a specific combination of device model and codec. You can only find that kind of pattern when your telemetry carries rich context (like device type and codec) and you can query across it.
+
+</details>
+
+<details>
+<summary><strong>Banking platform: intermittent payment failures</strong></summary>
+
+**The situation:** Intermittent payment failures were occurring, but only for certain customers. Traditional monitoring showed no errors — error rates looked normal.
+
+**Without observability:** Because the errors were intermittent and not showing up in aggregate metrics, this was nearly invisible. Affected customers were filing support tickets but engineers couldn't reproduce the problem.
+
+**What observability revealed:** Trace data showed that a specific database query (`get_account_transactions`) was occasionally taking 4+ seconds instead of the normal 100ms. The pattern: it only happened for "enterprise" tier accounts — customers with high transaction history. More rows in the database = slower query = downstream timeout.
+
+**The outcome:** Adding a database index reduced query time by 95%. Payment reliability improved to 99.99%. Total time to identify the pattern: 2 hours.
+
+**The lesson:** Aggregate metrics lie by averaging. A query that's slow for 5% of users but fast for 95% will look fine in your dashboards. Traces let you find the outliers — the specific requests where things actually went wrong.
+
+</details>
+
+
+> **Notice the pattern across all three:** Start broad (which service is failing?), narrow down (which dependency? which user segment?), confirm (verify the hypothesis with data). This is the observability debugging workflow you'll keep coming back to.
+
+---
+
 ## What observability actually means
 
 Observability is the ability to understand what your system is doing **from the outside**, especially when it is running in production and not behaving as expected.
