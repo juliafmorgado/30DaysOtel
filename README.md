@@ -9,6 +9,8 @@ Welcome!
 This is a **public learning project** designed to help others follow along and build production-ready observability skills step-by-step. Whether you're a complete beginner or looking to get certified, you'll find structured content, hands-on examples, and comprehensive exam preparation here.
 
 > New here? Check out **[GETTING_STARTED.md](GETTING_STARTED.md)** to find the best entry point for how you want to learn.
+>
+> Something broken? Check **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** for common install/runtime errors and how to debug missing traces or Collector issues.
 
 ---
 
