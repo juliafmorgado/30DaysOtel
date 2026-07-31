@@ -1,8 +1,6 @@
 # Troubleshooting
 
-Quando algo dá errado **agora mesmo**, comece por aqui em vez de vasculhar os guias dia a dia.
-
-Vá direto para o seu sintoma:
+Veja os cenários abaixo caso algo esteja dando errado:
 
 - ["Rodei `npm install` e recebi o erro XYZ"](#npm-install-errors)
 - ["`npm start` / `node app.js` não funciona"](#runtime-errors)
