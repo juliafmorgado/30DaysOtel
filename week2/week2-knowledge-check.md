@@ -1,6 +1,6 @@
 # Week 2 Knowledge Check: OpenTelemetry APIs & SDK
 
-Test your understanding of Week 2 concepts! This knowledge check covers the OpenTelemetry APIs, SDK configuration, and hands-on skills you've developed.
+Test your understanding of Week 2 concepts (days 8-14)! This knowledge check covers the OpenTelemetry APIs, SDK configuration, and hands-on skills you've developed.
 
 > **How to use this:** Try to answer each question before looking at the answer. This will help identify areas where you might want to review the material.
 

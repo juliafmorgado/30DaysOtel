@@ -54,4 +54,4 @@ A simple Express greeting API demonstrating manual instrumentation with OpenTele
 }
 ```
 
-See the full tutorial: [Day 9 - Tracing API](../../week2/day9.md)
+See the full tutorial here: [Day 9 - Tracing API](../../week2/day9.md)

@@ -3,10 +3,10 @@
 **Time to validate your Week 4 learning!** This knowledge check covers troubleshooting, production patterns, security, and advanced deployment strategies.
 
 **Week 4 Focus Areas:**
-- Systematic debugging approaches (Days 22-24)
-- Production resilience and scaling (Days 25-27)  
-- Complete system integration (Day 28)
-- Advanced topics awareness (Days 29-30)
+- Systematic debugging approaches (days 22-24)
+- Production resilience and scaling (days 25-27)  
+- Complete system integration (day 28)
+- Advanced topics awareness (days 29-30)
 
 ---
 

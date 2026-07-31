@@ -1,6 +1,6 @@
 # Week 1 Knowledge Check: Observability Fundamentals
 
-Test your understanding of the concepts from Week 1 (Days 1-6). This quiz covers observability basics, traces, metrics, logs, spans, semantic conventions, and instrumentation.
+Test your understanding of the concepts from Week 1 (days 1-6). This quiz covers observability basics, traces, metrics, logs, spans, semantic conventions, and instrumentation.
 
 **Scoring Guide:**
 - 0-8 correct: Review Week 1 materials
