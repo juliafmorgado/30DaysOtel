@@ -7,7 +7,7 @@ app.use(express.json());
 const tracer = trace.getTracer("context-demo", "1.0.0");
 
 // =========================
-// EXAMPLE 1: Automatic propagation (works great)
+// EXAMPLE 1: Automatic propagation
 // =========================
 
 async function automaticPropagationExample() {
